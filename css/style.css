@@ -49,6 +49,7 @@ html, body {
   border-top: 4px solid var(--orange); border-radius: 6px;
   padding: 28px 32px; box-shadow: 0 4px 18px rgba(0,0,0,.08);
 }
+.boot-card .boot-mark { display: block; margin-bottom: 14px; }
 .boot-card h2 { margin: 0 0 14px; font-size: 20px; color: var(--teal-900); }
 .boot-card p { margin: 0 0 12px; font-size: 14px; line-height: 1.6; color: var(--fg-mute); }
 .boot-card code {
@@ -82,8 +83,9 @@ header.bar {
   z-index: 20;
 }
 
+header.bar .brand { display: block; flex: 0 0 30px; }
 header.bar h1 {
-  font-size: 17px; font-weight: 600; margin: 0; letter-spacing: .2px;
+  font-size: 17px; font-weight: 600; margin: 0 0 0 -4px; letter-spacing: .2px;
 }
 header.bar .sub { font-size: 12px; opacity: .82; font-weight: 400; }
 header.bar .spacer { flex: 1; }
@@ -101,6 +103,8 @@ header.bar button:disabled { opacity: .4; cursor: default; }
 /* tabs -------------------------------------------------------------------- */
 
 nav.tabs { display: flex; gap: 2px; align-self: stretch; margin-left: 10px; }
+/* an author `display` beats the UA rule for [hidden], so restate it */
+nav.tabs[hidden] { display: none; }
 nav.tabs .tab {
   background: none; border: 0; border-bottom: 3px solid transparent;
   color: rgba(255,255,255,.72); font: inherit; font-size: 13.5px;
@@ -176,17 +180,6 @@ aside h2:first-child { margin-top: 0; }
   align-items: center; justify-content: center; gap: 14px; text-align: center;
   background: var(--bg-soft); z-index: 10; padding: 40px;
 }
-.drop .plate-art {
-  width: 132px; height: 96px; border: 2.5px dashed var(--teal-300);
-  border-radius: 10px; display: flex; align-items: center; justify-content: center;
-  gap: 13px; margin-bottom: 6px;
-}
-.drop .plate-art i {
-  width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid var(--teal-600);
-  display: block;
-}
-.drop .plate-art i.sq { border-radius: 3px; }
-.drop .plate-art i.fill { background: var(--teal-100); }
 .drop h2 { margin: 0; font-size: 21px; font-weight: 600; }
 .drop p { margin: 0; color: var(--fg-mute); font-size: 14px; max-width: 460px; line-height: 1.55; }
 .drop .browse {
@@ -196,6 +189,11 @@ aside h2:first-child { margin-top: 0; }
   transition: background .12s;
 }
 .drop .browse:hover { background: var(--teal-600); }
+.drop .drop-mark {
+  display: block; margin-bottom: 4px;
+  transition: transform .15s ease;
+}
+
 .drop .examples {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   justify-content: center; margin-top: 4px;
@@ -213,7 +211,7 @@ aside h2:first-child { margin-top: 0; }
 }
 
 .canvas.dragover .drop { background: var(--teal-50); }
-.canvas.dragover .drop .plate-art { border-color: var(--orange); }
+.canvas.dragover .drop .drop-mark { transform: scale(1.06); }
 
 .err {
   margin-top: 10px; padding: 11px 15px; border-radius: 4px; max-width: 520px;

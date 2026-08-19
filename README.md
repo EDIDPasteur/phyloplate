@@ -1,6 +1,10 @@
+<img src="assets/logo.svg" alt="" width="86" align="left" hspace="18" vspace="4">
+
 # PhyloPlate
 
 **[Open the app →](https://sebastianduchene.github.io/phyloplate/)**
+
+<br clear="left">
 
 Drop a BEAST X XML on the page and read the model back two ways: as a **plate
 diagram** in the notation of Höhna *et al.* (2014), and as the **written-out
@@ -134,7 +138,33 @@ js/layout.js        layered DAG layout with plate compaction
 js/render.js        D3 drawing, drag, zoom, tooltips, SVG export
 js/notation.js      DAG  -> probabilistic notation and LaTeX
 js/d3.v7.min.js     vendored, so the app works offline
+assets/             logo, icons and social card
 ```
+
+## The icon
+
+<img src="assets/logo.svg" alt="" width="60" align="left" hspace="14" vspace="2">
+
+Two offset dashed plates holding the smallest phylogenetic model there is: one
+ancestor, two descendants, the right one shaded because it is observed. The
+plates are the notation's mark for replication, so the icon says "a graphical
+model, repeated" &mdash; which is what the app draws.
+
+<br clear="left">
+
+| File | Use |
+| --- | --- |
+| `assets/logo.svg` | the mark, for light backgrounds |
+| `assets/logo-reversed.svg` | white version, for the app header and dark grounds |
+| `assets/icon.svg` | small-size form: one plate, three solid nodes |
+| `favicon.ico` | 16 / 32 / 48 px, each rendered from the SVG rather than downscaled |
+| `assets/apple-touch-icon.png` | 180 px opaque tile |
+| `assets/og-image.png` | 1200 &times; 630 social card |
+
+The full mark does not survive a 16 px favicon &mdash; two dashed plates plus a
+three-node graph is more detail than a browser tab can show. `icon.svg` is a
+genuine reduction rather than a restyle, keeping the plate and the three nodes
+but dropping the second plate and the edges.
 
 ## Scope and limitations
 

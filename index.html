@@ -4,6 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PhyloPlate — BEAST X model viewer</title>
+<meta name="description" content="Turn a BEAST X XML into a plate diagram and the
+  written-out probabilistic model, in your browser.">
+
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="PhyloPlate">
+<meta property="og:description" content="Bayesian phylogenetic models from BEAST X
+  XML, as plate diagrams and probabilistic notation.">
+<meta property="og:image" content="https://sebastianduchene.github.io/phyloplate/assets/og-image.png">
+<meta property="og:url" content="https://sebastianduchene.github.io/phyloplate/">
+<meta name="twitter:card" content="summary_large_image">
+
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -13,6 +28,7 @@
      and explains why instead of leaving a dead-looking page. -->
 <div class="boot" id="boot">
   <div class="boot-card">
+    <img src="assets/logo.svg" alt="" width="52" height="52" class="boot-mark">
     <h2>PhyloPlate did not start</h2>
     <p id="boot-why">
       This page is being opened directly from disk (<code>file://</code>).
@@ -29,6 +45,7 @@
 <div class="app">
 
   <header class="bar">
+    <img class="brand" src="assets/logo-reversed.svg" alt="" width="30" height="30">
     <h1>PhyloPlate</h1>
     <span class="sub">BEAST X models in plate notation</span>
 
@@ -78,7 +95,7 @@
       <svg id="svg"></svg>
       <div class="notation-pane" id="notation" hidden></div>
       <div class="drop" id="drop">
-        <div class="plate-art"><i class="sq"></i><i></i><i class="fill"></i></div>
+        <img class="drop-mark" src="assets/logo.svg" alt="" width="96" height="96">
         <h2>Drop a BEAST X XML here</h2>
         <p>The model graph is built in your browser — nothing is uploaded.
            Nodes follow Höhna <i>et al.</i> (2014): squares are constants,
