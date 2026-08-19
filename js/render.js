@@ -44,6 +44,8 @@ export class DiagramView {
   setModel(model) {
     this.model = model;
     this.collapsed = new Set();
+    // A new model in an old pan/zoom would open off-screen.
+    this.svg.call(this.zoom.transform, d3.zoomIdentity);
     this.draw();
   }
 
@@ -348,7 +350,12 @@ export class DiagramView {
 
   hideTip() { this.tooltip.classed('visible', false); }
 
-  resetZoom() {
+  /* Reset means "put the picture back how it was drawn", which is both the
+   * pan/zoom and the layout: dragging mutates node positions in place, so
+   * resetting only the transform leaves a rearranged graph sitting there and
+   * looks like the button did nothing. */
+  resetView() {
+    this.draw();
     this.svg.transition().duration(300).call(this.zoom.transform, d3.zoomIdentity);
   }
 

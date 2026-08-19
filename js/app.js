@@ -215,7 +215,7 @@ canvas.addEventListener('drop', e => {
 
 $('btn-expand').onclick = () => view.expandAll();
 $('btn-collapse').onclick = () => view.collapseAll();
-$('btn-reset').onclick = () => view.resetZoom();
+$('btn-reset').onclick = () => view.resetView();
 $('chk-modules').onchange = e => view.setModules(e.target.checked);
 $('chk-machinery').onchange = e => view.setMachinery(e.target.checked);
 

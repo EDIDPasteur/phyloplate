@@ -45,7 +45,9 @@ alignment.
 
 Nodes are draggable and plates refit as you move them. Hovering a node shows
 its type, prior, operators, and line in the source XML, and highlights its
-edges.
+edges. Scroll to zoom, drag the background to pan, and **Reset view** puts the
+picture back as it was drawn — restoring the computed layout, so it undoes
+dragging as well as the pan and zoom.
 
 **Collapse modules** gives the high-level modular view of Fig. 8a of the
 paper — Tree, Rate matrix, Site rates, Branch rates, PhyloCTMC — with each box

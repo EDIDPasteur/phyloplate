@@ -83,7 +83,17 @@ header.bar {
   z-index: 20;
 }
 
-header.bar .brand { display: block; flex: 0 0 30px; }
+header.bar .brand {
+  display: flex; align-items: center; justify-content: center;
+  flex: 0 0 38px; height: 38px; margin: 0 -4px;
+  border-radius: 6px; text-decoration: none;
+  transition: background .12s, opacity .12s;
+}
+header.bar .brand:hover { background: rgba(255,255,255,.16); }
+header.bar .brand:focus-visible {
+  outline: 2px solid #fff; outline-offset: 1px; background: rgba(255,255,255,.16);
+}
+header.bar .brand img { display: block; }
 header.bar h1 {
   font-size: 17px; font-weight: 600; margin: 0 0 0 -4px; letter-spacing: .2px;
 }
