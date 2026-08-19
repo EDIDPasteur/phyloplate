@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PhyloPlate — BEAST X model viewer</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- Shown until app.js evaluates.  If the page is opened over file:// the
+     browser blocks ES modules and no script runs at all, so this stays up
+     and explains why instead of leaving a dead-looking page. -->
+<div class="boot" id="boot">
+  <div class="boot-card">
+    <h2>PhyloPlate did not start</h2>
+    <p id="boot-why">
+      This page is being opened directly from disk (<code>file://</code>).
+      Browsers refuse to load ES modules over <code>file://</code>, so none of
+      the app's code ran.
+    </p>
+    <p>Serve the folder over http instead:</p>
+    <pre>cd <span id="boot-dir">app</span>
+./serve.sh</pre>
+    <p class="boot-foot">then open the <code>http://localhost:…</code> address it prints.</p>
+  </div>
+</div>
+
+<div class="app">
+
+  <header class="bar">
+    <h1>PhyloPlate</h1>
+    <span class="sub">BEAST X models in plate notation</span>
+
+    <nav class="tabs" id="tabs" hidden>
+      <button class="tab active" data-tab="diagram">Diagram</button>
+      <button class="tab" data-tab="notation">Notation</button>
+    </nav>
+
+    <span class="spacer"></span>
+    <span class="tab-tools" data-for="diagram">
+      <button id="btn-expand" disabled>Expand all</button>
+      <button id="btn-collapse" disabled>Collapse modules</button>
+      <button id="btn-reset" disabled>Reset view</button>
+      <button id="btn-svg" disabled>Export SVG</button>
+    </span>
+    <span class="tab-tools" data-for="notation" hidden>
+      <button id="btn-latex">Copy LaTeX</button>
+    </span>
+    <button id="btn-clear" disabled>Load another</button>
+  </header>
+
+  <div class="main">
+    <aside id="aside" class="empty">
+      <h2>Model</h2>
+      <div class="meta-grid" id="meta"></div>
+
+      <div class="diagram-only">
+      <h2>Modules</h2>
+      <div class="mod-list" id="modules"></div>
+      <div class="hint">Click a module to collapse it into a single box, as in
+        Fig. 8a of Höhna et al. Click the box again to expand.</div>
+
+      <h2>View</h2>
+      <label class="toggle"><input type="checkbox" id="chk-modules">
+        Module outlines</label>
+      <label class="toggle"><input type="checkbox" id="chk-machinery">
+        Statistics &amp; gradients</label>
+      <div class="hint">Logged summary statistics and HMC gradient elements are
+        inference machinery, not part of the generative model.</div>
+
+      <h2>Legend</h2>
+      <div class="legend" id="legend"></div>
+      </div>
+    </aside>
+
+    <div class="canvas" id="canvas">
+      <svg id="svg"></svg>
+      <div class="notation-pane" id="notation" hidden></div>
+      <div class="drop" id="drop">
+        <div class="plate-art"><i class="sq"></i><i></i><i class="fill"></i></div>
+        <h2>Drop a BEAST X XML here</h2>
+        <p>The model graph is built in your browser — nothing is uploaded.
+           Nodes follow Höhna <i>et al.</i> (2014): squares are constants,
+           circles are random variables, dashed circles are deterministic
+           transforms, shaded circles are observed data.</p>
+        <button class="browse" id="btn-browse">Choose file…</button>
+        <div class="examples">
+          <span>or load an example:</span>
+          <button class="example" data-example="gtr-strict-clock-6taxa.xml">
+            GTR+Γ strict clock <em>6 taxa</em></button>
+          <button class="example" data-example="sim_local_MEclock_MCMC_HMCtuned.xml">
+            Mixed-effects clock <em>50 taxa</em></button>
+        </div>
+        <input type="file" id="file" accept=".xml,text/xml" hidden>
+        <div class="err" id="err" hidden></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script src="js/d3.v7.min.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

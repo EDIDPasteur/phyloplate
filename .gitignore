@@ -1,0 +1,14 @@
+# editor / OS noise
+.DS_Store
+*.swp
+*~
+
+# Dropbox
+.dropbox
+*.sb-*
+
+# local scratch
+_smoke.html
+_smoke.js
+_wait.html
+node_modules/

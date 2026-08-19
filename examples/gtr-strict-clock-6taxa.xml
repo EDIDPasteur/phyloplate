@@ -1,0 +1,200 @@
+<?xml version="1.0" standalone="yes"?>
+
+<!-- A small, self-contained BEAST X example for PhyloPlate.                 -->
+<!-- Tip-dated GTR+Gamma with a strict clock and a constant-size coalescent. -->
+<!-- The sequences are simulated: 6 taxa, 240 nucleotides.                     -->
+<beast version="10.5.0">
+
+	<taxa id="taxa">
+		<taxon id="EPI_A/2013">
+			<date value="2013.42" direction="forwards" units="years"/>
+		</taxon>
+		<taxon id="EPI_B/2014">
+			<date value="2014.11" direction="forwards" units="years"/>
+		</taxon>
+		<taxon id="EPI_C/2015">
+			<date value="2015.63" direction="forwards" units="years"/>
+		</taxon>
+		<taxon id="EPI_D/2016">
+			<date value="2016.28" direction="forwards" units="years"/>
+		</taxon>
+		<taxon id="EPI_E/2018">
+			<date value="2018.05" direction="forwards" units="years"/>
+		</taxon>
+		<taxon id="EPI_F/2019">
+			<date value="2019.77" direction="forwards" units="years"/>
+		</taxon>
+	</taxa>
+
+	<alignment id="alignment" dataType="nucleotide">
+		<sequence>
+			<taxon idref="EPI_A/2013"/>
+			tttcctcatgcaattcaaaaccatgtccgtaatgaaggcgaaatagtaaaccattttacg
+			gaggataccagattcctccttattcaggaactaacctgaggtaaaccaggtctctacgcc
+			gccttattaaagctgttgcacctagccaagttcaacggcagctgcaatggaaataggcaa
+			tgacggatatatattaaaaagtgttttaagatacgttaaggcccgttcgagctccttgcc
+		</sequence>
+		<sequence>
+			<taxon idref="EPI_B/2014"/>
+			tttcctcatgtaattcaaaaccatgtccgtaatgaaggcgaaatagtaaaccattttacg
+			gaggataccaaattcctcctaattcaggaactaacctgaggtaaaccaggtctctccgcc
+			cccttactaaagcggttgcacctagccaagttcaagggcagctgcaatggaagcaggcaa
+			tgaaggatatatattaaaaagtgttttaagataccttaaggcctgttcgagctcctcgcc
+		</sequence>
+		<sequence>
+			<taxon idref="EPI_C/2015"/>
+			tttcatcatgcaattcaaaaccatgtccgtaatgaaagcgaaatagtaaaccattttacg
+			aaggataccaaattcctccaaattcaggaactaacctgaggtaaaccaggtctctccgcc
+			cccttactaaagcggttgcacctaaccaagttcaacggcagctggagtggaagtaggcaa
+			tgaaggatatatattaaaatgtcctttaagataccttaaggcccgttcgagctcctcgcc
+		</sequence>
+		<sequence>
+			<taxon idref="EPI_D/2016"/>
+			ttacatcatgcaattcaaaaccatgtcggtaatgaaggcgaaatattaaaccattttacg
+			gaggacaccaaattcctccaaattcaggaactaacctgaggtaaaccaggtctctccgcc
+			cccttactaaagcggtttcacctaaccaagttcaacggcagatagagaggaagtaggcaa
+			tgtaggatatatattaaaaagtctttcaagataccttaaggcccgttcgagctcctcgcc
+		</sequence>
+		<sequence>
+			<taxon idref="EPI_E/2018"/>
+			tttcatcatgcaattcaaaaccatgtcggtaatgaaggcgaaatattaaaccatttttcg
+			gaggatacctaattcctccaaattcaggcactaacctgaggtaaaccaggtctctccgcc
+			cccttactaaagcggtttgacctaaccaagttcaacggcagatagagaggaagtaggcag
+			tgaaggatatatattaaaatgtatttcaagataccttcaggcccgttcgagttcctcgcc
+		</sequence>
+		<sequence>
+			<taxon idref="EPI_F/2019"/>
+			tttcatcatgcaattcaaaaccatgtcggtaatcaaggcgaaatattaaatcatttttcg
+			gaggatacctaattcctccaaattcagacactaacctgaagtaaaccaggtctctttgac
+			cccttactaaagcggtttgacctaaccaagttcaacggcatatagagaggaagtaggcaa
+			tgaaggatatatattaaaatgtccttcaatataccttaaggcccgttcgagctcctcgcc
+		</sequence>
+	</alignment>
+
+	<patterns id="patterns" from="1" strip="false">
+		<alignment idref="alignment"/>
+	</patterns>
+
+	<!-- Tree prior: constant-size coalescent -->
+	<constantSize id="constant" units="years">
+		<populationSize>
+			<parameter id="constant.popSize" value="1.0" lower="0.0"/>
+		</populationSize>
+	</constantSize>
+
+	<coalescentSimulator id="startingTree">
+		<taxa idref="taxa"/>
+		<constantSize idref="constant"/>
+	</coalescentSimulator>
+
+	<treeModel id="treeModel">
+		<tree idref="startingTree"/>
+		<rootHeight>
+			<parameter id="treeModel.rootHeight"/>
+		</rootHeight>
+		<nodeHeights internalNodes="true">
+			<parameter id="treeModel.internalNodeHeights"/>
+		</nodeHeights>
+		<nodeHeights internalNodes="true" rootNode="true">
+			<parameter id="treeModel.allInternalNodeHeights"/>
+		</nodeHeights>
+	</treeModel>
+
+	<coalescentLikelihood id="coalescent">
+		<model>
+			<constantSize idref="constant"/>
+		</model>
+		<intervals>
+			<treeIntervals>
+				<treeModel idref="treeModel"/>
+			</treeIntervals>
+		</intervals>
+	</coalescentLikelihood>
+
+	<!-- Molecular clock: one rate for every branch -->
+	<strictClockBranchRates id="branchRates">
+		<rate>
+			<parameter id="clock.rate" value="1.0E-3" lower="0.0"/>
+		</rate>
+	</strictClockBranchRates>
+
+	<!-- Substitution model: GTR -->
+	<gtrModel id="gtr">
+		<frequencies>
+			<frequencyModel dataType="nucleotide">
+				<alignment idref="alignment"/>
+				<frequencies>
+					<parameter id="frequencies" dimension="4" value="0.25"/>
+				</frequencies>
+			</frequencyModel>
+		</frequencies>
+		<rateAC><parameter id="ac" value="1.0" lower="0.0"/></rateAC>
+		<rateAG><parameter id="ag" value="1.0" lower="0.0"/></rateAG>
+		<rateAT><parameter id="at" value="1.0" lower="0.0"/></rateAT>
+		<rateCG><parameter id="cg" value="1.0" lower="0.0"/></rateCG>
+		<rateGT><parameter id="gt" value="1.0" lower="0.0"/></rateGT>
+	</gtrModel>
+
+	<!-- Among-site rate variation: discretised gamma -->
+	<siteModel id="siteModel">
+		<substitutionModel>
+			<gtrModel idref="gtr"/>
+		</substitutionModel>
+		<gammaShape gammaCategories="4">
+			<parameter id="alpha" value="0.5" lower="0.0"/>
+		</gammaShape>
+	</siteModel>
+
+	<treeDataLikelihood id="treeLikelihood" useAmbiguities="false">
+		<partition>
+			<patterns idref="patterns"/>
+			<siteModel idref="siteModel"/>
+		</partition>
+		<treeModel idref="treeModel"/>
+		<strictClockBranchRates idref="branchRates"/>
+	</treeDataLikelihood>
+
+	<operators id="operators" optimizationSchedule="log">
+		<scaleOperator scaleFactor="0.75" weight="1"><parameter idref="ac"/></scaleOperator>
+		<scaleOperator scaleFactor="0.75" weight="1"><parameter idref="ag"/></scaleOperator>
+		<scaleOperator scaleFactor="0.75" weight="1"><parameter idref="at"/></scaleOperator>
+		<scaleOperator scaleFactor="0.75" weight="1"><parameter idref="cg"/></scaleOperator>
+		<scaleOperator scaleFactor="0.75" weight="1"><parameter idref="gt"/></scaleOperator>
+		<scaleOperator scaleFactor="0.75" weight="1"><parameter idref="alpha"/></scaleOperator>
+		<scaleOperator scaleFactor="0.75" weight="3"><parameter idref="clock.rate"/></scaleOperator>
+		<scaleOperator scaleFactor="0.75" weight="3"><parameter idref="constant.popSize"/></scaleOperator>
+		<subtreeSlide size="1.0" gaussian="true" weight="15"><treeModel idref="treeModel"/></subtreeSlide>
+		<upDownOperator scaleFactor="0.75" weight="3">
+			<up><parameter idref="clock.rate"/></up>
+			<down><parameter idref="treeModel.allInternalNodeHeights"/></down>
+		</upDownOperator>
+	</operators>
+
+	<mcmc id="mcmc" chainLength="10000000" autoOptimize="true">
+		<joint id="joint">
+			<prior id="prior">
+				<gammaPrior shape="0.05" scale="10.0" offset="0.0"><parameter idref="ac"/></gammaPrior>
+				<gammaPrior shape="0.05" scale="10.0" offset="0.0"><parameter idref="ag"/></gammaPrior>
+				<gammaPrior shape="0.05" scale="10.0" offset="0.0"><parameter idref="at"/></gammaPrior>
+				<gammaPrior shape="0.05" scale="10.0" offset="0.0"><parameter idref="cg"/></gammaPrior>
+				<gammaPrior shape="0.05" scale="10.0" offset="0.0"><parameter idref="gt"/></gammaPrior>
+				<exponentialPrior mean="0.5" offset="0.0"><parameter idref="alpha"/></exponentialPrior>
+				<ctmcScalePrior>
+					<ctmcScale><parameter idref="clock.rate"/></ctmcScale>
+					<treeModel idref="treeModel"/>
+				</ctmcScalePrior>
+				<oneOnXPrior><parameter idref="constant.popSize"/></oneOnXPrior>
+				<coalescentLikelihood idref="coalescent"/>
+			</prior>
+			<likelihood id="likelihood">
+				<treeDataLikelihood idref="treeLikelihood"/>
+			</likelihood>
+		</joint>
+		<operators idref="operators"/>
+		<log id="screenLog" logEvery="10000">
+			<column label="Joint" dp="4" width="12"><joint idref="joint"/></column>
+			<column label="clock.rate" sf="6" width="12"><parameter idref="clock.rate"/></column>
+		</log>
+	</mcmc>
+
+</beast>
