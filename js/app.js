@@ -172,6 +172,22 @@ function renderLegend() {
 }
 renderLegend();
 
+// ------------------------------------------------------------------ dialogs
+
+// A footer tab opens the <dialog> whose id is `dlg-` + its data-dialog, so
+// adding another panel is markup only.  <dialog> gives Esc-to-close and the
+// backdrop for free; the two listeners below add close-on-backdrop-click,
+// which it does not.
+for (const tab of document.querySelectorAll('.foot-tab')) {
+  const dlg = $('dlg-' + tab.dataset.dialog);
+  if (!dlg) continue;
+  tab.onclick = () => { tab.classList.add('open'); dlg.showModal(); };
+  dlg.addEventListener('close', () => tab.classList.remove('open'));
+  dlg.querySelector('.modal-close').onclick = () => dlg.close();
+  // padding is 0, so the dialog is only its own event target on the backdrop
+  dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+}
+
 // ------------------------------------------------------------------ events
 
 $('btn-browse').onclick = () => $('file').click();

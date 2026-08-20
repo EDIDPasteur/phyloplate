@@ -118,7 +118,72 @@
       </div>
     </div>
   </div>
+
+  <!-- Bottom bar.  Each tab opens the <dialog> whose id is `dlg-` + its
+       data-dialog, so another panel is markup only. -->
+  <footer class="foot">
+    <button class="foot-tab" data-dialog="about">About</button>
+    <span class="foot-note">Runs entirely in your browser — nothing is uploaded.</span>
+  </footer>
 </div>
+
+<dialog class="modal" id="dlg-about" aria-labelledby="dlg-about-title">
+  <div class="modal-head">
+    <img src="assets/logo-reversed.svg" alt="" width="26" height="26">
+    <h2 id="dlg-about-title">About PhyloPlate</h2>
+    <button class="modal-close" aria-label="Close">&times;</button>
+  </div>
+  <div class="modal-body">
+    <p><b>PhyloPlate</b> turns a BEAST X XML into a readable model. Drop a file
+      on the page and read the model back two ways: as a <b>plate diagram</b> in
+      the notation of H&ouml;hna <i>et al.</i> (2014), and as the <b>written-out
+      probabilistic model</b> &mdash; posterior factorisation, likelihood,
+      priors, and deterministic transforms.</p>
+
+    <p>A BEAST XML says exactly what the model is, and says it almost
+      unreadably. The generative structure &mdash; what depends on what, which
+      variables are sampled, which are transforms, where the data attaches
+      &mdash; is spread across a few hundred lines of nested elements and
+      <code>idref</code> references. PhyloPlate recovers that structure and
+      draws it.</p>
+
+    <p>The graph is built generically from the XML rather than by
+      pattern-matching known models, so unfamiliar components still draw; they
+      fall back to generic labels where no symbol is known. The notation view
+      reuses that same graph &mdash; a factor's conditioning set is just its
+      parents in the DAG &mdash; so the two views cannot drift apart.
+      <b>Copy LaTeX</b> puts the whole model on the clipboard, ready to paste
+      into a manuscript.</p>
+
+    <p>Everything runs in your browser. Your XML is never uploaded; the page has
+      no back end and makes no network requests once loaded.</p>
+
+    <h3>Scope</h3>
+    <p>PhyloPlate reads <b>BEAST X / BEAST 1.x</b>, the dialect BEAUti v10
+      emits. BEAST2 files use the same <code>&lt;beast&gt;</code> root but a
+      <code>spec="&hellip;"</code> attribute style; they are detected and
+      reported rather than drawn as an empty graph. The layout is heuristic
+      &mdash; large models draw correctly, but may need dragging before they are
+      presentable.</p>
+
+    <h3>Citation</h3>
+    <p class="modal-cite">The notation is from H&ouml;hna S., Heath T.A.,
+      Boussau B., Landis M.J., Ronquist F., Huelsenbeck J.P. (2014)
+      Probabilistic graphical model representation in phylogenetics.
+      <i>Systematic Biology</i> 63(5):753&ndash;771.
+      <a href="https://doi.org/10.1093/sysbio/syu039" target="_blank"
+         rel="noopener noreferrer">doi:10.1093/sysbio/syu039</a></p>
+
+    <p class="modal-links">
+      <a href="https://github.com/sebastianduchene/phyloplate" target="_blank"
+         rel="noopener noreferrer">Source code</a>
+      <a href="https://beast.community/" target="_blank"
+         rel="noopener noreferrer">BEAST X</a>
+      <a href="https://github.com/sebastianduchene/phyloplate/blob/main/LICENSE"
+         target="_blank" rel="noopener noreferrer">MIT licence</a>
+    </p>
+  </div>
+</dialog>
 
 <div class="tooltip" id="tooltip"></div>
 
