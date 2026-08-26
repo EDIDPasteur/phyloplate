@@ -103,12 +103,22 @@ function load(text, name) {
     $(b).disabled = false;
   }
   search.model = model;
+  /* Reset legend lock + active row on model load. */
+  legendLockType = null;
+  paintLegend(null);
 
   view.onChange = () => renderSidebar(model);
   view.onHover = n => {
-    if (!n || !n.xmlLine) { source.clearHighlight(); return; }
+    if (!n || !n.xmlLine) {
+      source.clearHighlight();
+      markLegendType(null);
+      return;
+    }
     source.highlightId({ line: n.xmlLine, endLine: n.xmlEndLine,
                          id: n.id }, { dimOthers: true });
+    /* Match the legend row to the hovered node's type so the diagram
+     * and the sidebar stay in sync.  Module boxes have no type here. */
+    if (n.type && n.type !== 'module') markLegendType(n.type);
   };
   view.onPick = n => {
     if (!n) return;
@@ -237,6 +247,9 @@ const LEGEND = [
   ['factor', 'Factor', 'Likelihood or density term'],
 ];
 
+/** Currently "locked" legend type (clicked).  null = no lock. */
+let legendLockType = null;
+
 function renderLegend() {
   $('legend').innerHTML = LEGEND.map(([type, name, desc]) => {
     let shape;
@@ -259,19 +272,45 @@ function renderLegend() {
       <span class="desc"><b>Plate</b>Replication over branches or sites</span>
     </div>`;
 
-  // Legend rows are clickable: click a row to filter the diagram to that type.
+  // Legend rows are clickable: click a row to lock the diagram filter to that
+  // node type.  Click the same row again (or Esc) to clear the lock.
   for (const row of $('legend').querySelectorAll('.row[data-node-type]')) {
-    row.style.cursor = 'pointer';
     row.onclick = () => {
       const type = row.dataset.nodeType;
-      const all = LEGEND.find(l => l[0] === type);
-      if (!all) return;
-      $('search').value = type;
-      search.refresh();
+      if (legendLockType === type) {
+        legendLockType = null;
+        view.clearTypeHighlight();
+        paintLegend(null);
+      } else {
+        legendLockType = type;
+        view.highlightByType(type);
+        paintLegend(type);
+      }
     };
   }
 }
+
+/** Paint the legend rows so that `type` is `.active`. */
+function paintLegend(type) {
+  for (const r of $('legend').querySelectorAll('.row[data-node-type]')) {
+    r.classList.toggle('active', r.dataset.nodeType === type);
+  }
+}
+
+/** While hovering a node, mark the legend row that matches its type —
+ *  unless the user has clicked a row to lock the filter, in which case the
+ *  hover must not override the lock. */
+function markLegendType(type) {
+  if (legendLockType) return;
+  paintLegend(type);
+}
 renderLegend();
+
+/* Collapsible h2 headers: clicking toggles `.collapsed` on the h2 itself;
+ * the CSS hides the immediately-following sibling when collapsed. */
+for (const head of document.querySelectorAll('aside h2.collapsible')) {
+  head.onclick = () => head.classList.toggle('collapsed');
+}
 
 // ----------------------------------------------------------------- dialogs
 
@@ -523,11 +562,30 @@ wireToolbar();
 
 // ----------------------------------------------------------------- search
 
-$('search').oninput = () => search.refresh();
+$('search').oninput = () => {
+  search.refresh();
+  /* Search overwrites the dim state of every node; if the user has locked
+   * a legend row, re-apply that dim on top of the search. */
+  if (legendLockType) view.highlightByType(legendLockType);
+};
+/* Enter cycles matches; Escape clears the search.  Esc also re-applies any
+ * locked legend dim, since clearing the search strips the dim class. */
 $('search').onkeydown = e => {
   if (e.key === 'Enter') { e.preventDefault(); search.next(e.shiftKey ? -1 : 1); }
-  if (e.key === 'Escape') { search.clear(); $('search').blur(); }
+  if (e.key === 'Escape') {
+    search.clear();
+    $('search').blur();
+    if (legendLockType) view.highlightByType(legendLockType);
+  }
 };
+/* Esc anywhere else clears any locked legend filter too. */
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && legendLockType) {
+    legendLockType = null;
+    view.clearTypeHighlight();
+    paintLegend(null);
+  }
+});
 
 // ----------------------------------------------------------------- focus event
 
