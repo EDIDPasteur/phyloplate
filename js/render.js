@@ -57,6 +57,20 @@ export class DiagramView {
       .classed('dim', d => matches && !ids.has(d.id));
   }
 
+  /** Legend-click: dim every node whose type does not match `type`.  Module
+   *  collapse boxes are ignored. */
+  highlightByType(type) {
+    if (!this.model) return;
+    this.svg.select('.zoom-root').selectAll('.node')
+      .classed('dim', d => d.type && d.type !== 'module' && d.type !== type);
+  }
+
+  /** Clear the type-based dim (e.g. legend row toggled off). */
+  clearTypeHighlight() {
+    if (!this.model) return;
+    this.svg.select('.zoom-root').selectAll('.node').classed('dim', false);
+  }
+
   /** Imperatively focus a node (hover-equivalent behaviour from outside). */
   focusNode(id) {
     if (!this.model) return;
