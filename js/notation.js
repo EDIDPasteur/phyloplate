@@ -14,6 +14,14 @@ const TEX = {
   'r': 'r', 'g': 'g', 'BD': '\\mathrm{BD}',
 };
 
+/* Unicode subscript digits 0-9.  These show up on disambiguated
+ * labels (κ₁, κ₂, …) and need to translate to a TeX subscript so
+ * the exported LaTeX reads the same way. */
+const TEX_SUBSCRIPTS = {
+  '₀': '_0', '₁': '_1', '₂': '_2', '₃': '_3', '₄': '_4',
+  '₅': '_5', '₆': '_6', '₇': '_7', '₈': '_8', '₉': '_9',
+};
+
 /** Friendly names for the deterministic components. */
 const COMPONENT = {
   hkyModel: 'HKY', gtrModel: 'GTR', tn93Model: 'TN93', jc69Model: 'JC69',
@@ -476,8 +484,18 @@ function probTexOf(t, symTex) {
 
 function texOf(label) {
   if (TEX[label]) return TEX[label];
-  const base = label.replace(/[ⱼᵢ]$/, '');
-  if (TEX[base]) return TEX[base];
+  /* Translate any trailing Unicode subscripts to TeX.  We slice
+   * off every Unicode subscript digit, not just the last one, so
+   * a label like β₁₂ maps to \beta_{12}. */
+  const subMatch = label.match(/([₀-₉]+)$/);
+  if (subMatch) {
+    const base = label.slice(0, subMatch.index);
+    const digits = subMatch[1].split('').map(c => TEX_SUBSCRIPTS[c] || c).join('');
+    const baseTex = TEX[base] || `\\mathrm{${escTex(base)}}`;
+    return `${baseTex}_{${digits}}`;
+  }
+  const plateBase = label.replace(/[ⱼᵢ]$/, '');
+  if (TEX[plateBase]) return TEX[plateBase];
   return `\\mathrm{${escTex(label)}}`;
 }
 

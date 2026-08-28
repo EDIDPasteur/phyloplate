@@ -137,6 +137,17 @@ function load(text, name) {
   };
   view.setModel(model);
   source.setSource(text);
+  /* Click-to-jump on the source tab.  When the user clicks a line
+   * that maps to a prior, operator, <mcmc>, <log>, or <logTree>,
+   * the McmcEditor highlights and scrolls to the matching row.
+   * (The lineTarget is built by the parser; see parse-beast.js.) */
+  source.setLineTargets(model.lineTargets || null);
+  source.onLineTarget = (t) => {
+    /* Only jump if the source tab is active.  Otherwise the user is
+     * still on the diagram and the click is a no-op. */
+    if ($('source').hidden) return;
+    if (mcmcEditor) mcmcEditor.focusLineTarget(t);
+  };
 
   renderSidebar(model);
 
@@ -758,6 +769,10 @@ function applyEdits(xml, parseError, stayOnDock) {
     currentModel = model;
     search.model = model;
     view.setModel(model);
+    /* Refresh the click-to-jump line targets so the source view picks
+     * up the edited XML's priors / operators.  The handler is wired
+     * in load() and doesn't need to be re-set. */
+    source.setLineTargets(model.lineTargets || null);
     try {
       notation = buildNotation(model);
       renderNotation(notation, $('notation'));

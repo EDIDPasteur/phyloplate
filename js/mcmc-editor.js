@@ -23,8 +23,9 @@
  */
 
 const PRIOR_KINDS = [
-  'logNormal', 'exponential', 'normal', 'gamma', 'uniform', 'beta',
-  'oneOnX', 'ctmcScale', 'laplace',
+  'logNormal', 'exponential', 'normal', 'gamma', 'expGamma', 'uniform', 'beta',
+  'oneOnX', 'ctmcScale', 'laplace', 'inverseGamma', 'poisson', 'cauchy',
+  'halfNormal', 'halfCauchy', 'halfT', 'dirichlet',
 ];
 
 const PRIOR_INFO = {
@@ -46,7 +47,28 @@ const PRIOR_INFO = {
           'var = \u03B1\u00B7\u03B8\u00B2.  An offset shifts the support to ' +
           'x \u2265 offset.',
   },
+  expGamma: {
+    label: 'ExpGamma',
+    text: 'Distribution of exp(X) where X ~ Gamma(\u03B1, \u03B8).  Strictly ' +
+          'positive; mean = exp(\u03B1\u03B8 + \u03B8\u00B2/2) (real space).  ' +
+          'Used for log-scale rates where the prior on ln r is Gamma \u2014 ' +
+          'so r = exp(ln r) is ExpGamma.  An offset shifts the support to ' +
+          'x \u2265 offset.',
+  },
   invgamma: {
+    label: 'Inverse gamma',
+    text: 'Inverse-gamma prior.  Convention: BEAST X stores shape \u03B1 ' +
+          'and scale \u03B2; mean = \u03B2 / (\u03B1 \u2212 1) for \u03B1 > 1.',
+  },
+  /* BEAST X spells this `inverseGammaPrior` / `inverseGammaDistributionModel`.
+   * Older BEAST 1 code uses `invgamma` / `invGamma`; treat the two as
+   * the same distribution. */
+  inverseGamma: {
+    label: 'Inverse gamma',
+    text: 'Inverse-gamma prior.  Convention: BEAST X stores shape \u03B1 ' +
+          'and scale \u03B2; mean = \u03B2 / (\u03B1 \u2212 1) for \u03B1 > 1.',
+  },
+  invGamma: {
     label: 'Inverse gamma',
     text: 'Inverse-gamma prior.  Convention: BEAST X stores shape \u03B1 ' +
           'and scale \u03B2; mean = \u03B2 / (\u03B1 \u2212 1) for \u03B1 > 1.',
@@ -93,6 +115,28 @@ const PRIOR_INFO = {
           'invariant to rate \u00D7 time rescalings.  Added by BEAST X ' +
           'automatically; the user does not pick a shape for this one.',
   },
+  halfNormal: {
+    label: 'Half-normal',
+    text: 'Normal distribution folded to x \u2265 0.  Strictly positive; ' +
+          'stdev sets the scale.  Use for scale parameters that cannot be ' +
+          'negative.',
+  },
+  halfCauchy: {
+    label: 'Half-Cauchy',
+    text: 'Cauchy distribution folded to x \u2265 0.  Heavier-tailed than ' +
+          'half-normal; median equals scale.',
+  },
+  halfT: {
+    label: 'Half-t',
+    text: 't distribution folded to x \u2265 0.  Heavier-tailed than ' +
+          'half-normal; degrees of freedom set the tail weight.',
+  },
+  dirichlet: {
+    label: 'Dirichlet',
+    text: 'Multivariate generalisation of the beta.  alpha sets the ' +
+          'concentration; sumsTo sets the simplex total (default 1.0).  ' +
+          'Used for GTR exchangeability rates.',
+  },
 };
 
 /* -------------------------------------------------------------- PDF plotting */
@@ -107,9 +151,22 @@ const lnpdf = (x, mu, sigma) =>
 const exppdf = (x, mean) => x < 0 ? 0 : Math.exp(-x / mean) / mean;
 const gammapdf = (x, k, theta) => x <= 0 ? 0 :
   Math.exp((k - 1) * Math.log(x) - x / theta - lgamma(k) - k * Math.log(theta));
+/* Distribution of exp(X) where X ~ Gamma(k, theta).  Change of
+ * variable gives f(y) = (1/y) gammapdf(log y, k, theta) for y > 0.
+ * BEAST X uses this for the background rate in mixed-effects
+ * log-scale clocks, so the prior on ln r is Gamma and r = exp(ln r)
+ * is ExpGamma. */
+const expgammapdf = (x, k, theta) => x <= 0 ? 0 :
+  Math.exp((k - 1) * Math.log(x) - x / theta - lgamma(k) - k * Math.log(theta)
+           - Math.log(x));
+/* Inverse-gamma density: BEAST X stores shape (alpha) and scale
+ * (beta) so the mean = beta / (alpha - 1) for alpha > 1. */
+const invgammapdf = (x, a, b) => x <= 0 ? 0 :
+  Math.exp(-a * Math.log(x) - b / x - lgamma(a) + a * Math.log(b)) / x;
 const normalpdf = (x, mu, sigma) =>
   Math.exp(-((x - mu) ** 2) / (2 * sigma * sigma)) / (sigma * SQRT_2PI);
 const laplacepdf = (x, mu, b) => Math.exp(-Math.abs(x - mu) / b) / (2 * b);
+const cauchypdf = (x, mu, s) => 1 / (Math.PI * s * (1 + ((x - mu) / s) ** 2));
 const betapdf = (x, a, b) => x <= 0 || x >= 1 ? 0 :
   Math.exp((a - 1) * Math.log(x) + (b - 1) * Math.log(1 - x)
            - lgamma(a) - lgamma(b) + lgamma(a + b));
@@ -211,6 +268,41 @@ function samplePrior(p, N = 200) {
     logScale = k < 1 || xMax / Math.max(lo, 1e-5) > 5;
     xLabel = 'x';
     offsetAt = lo;
+  } else if (p.kind === 'expGamma') {
+    /* Distribution of exp(X) with X ~ Gamma(k, theta).  Strictly positive;
+     * median sits at e^{k*theta} (modest k, theta), so we plot out to a few
+     * multiples of the median.  log-scale x when the range covers more
+     * than a factor of 5, matching the gamma preview. */
+    const k  = (isFinite(shape) && shape > 0) ? shape
+              : (isFinite(mu) && mu > 0) ? mu : 1;
+    const th = (isFinite(scale) && scale > 0) ? scale
+              : (isFinite(sigma) && sigma > 0) ? sigma : 1;
+    const lo = isFinite(offset) ? offset : 0;
+    /* Median of expGamma is exp(k*theta - theta^2/2 + ...) in real space;
+     * use a conservative span to capture the right tail. */
+    const medianEst = Math.exp(k * th);
+    const xMin = Math.max(1e-12, lo + medianEst * 1e-4);
+    const xMax = Math.max(xMin * 10, lo + medianEst * 30);
+    xs = logspace(xMin, xMax, N);
+    ys = xs.map(x => expgammapdf(x - lo, k, th));
+    logScale = true;
+    xLabel = 'x';
+    offsetAt = lo;
+  } else if (p.kind === 'invgamma' || p.kind === 'inverseGamma' || p.kind === 'invGamma') {
+    /* BEAST X inverseGamma: shape (alpha), scale (beta) so mean = beta/(alpha-1).
+     * Three accepted spellings — see the alias block in PRIOR_INFO. */
+    const a  = (isFinite(shape) && shape > 0) ? shape
+              : (isFinite(mu) && mu > 0) ? mu : 3;
+    const b  = (isFinite(scale) && scale > 0) ? scale
+              : (isFinite(sigma) && sigma > 0) ? sigma : 1;
+    const lo = isFinite(offset) ? offset : 0;
+    const xMax = Math.max(lo + 1, a > 1 ? lo + 10 * b / (a - 1)
+                                       : lo + 10 * b);
+    xs = logspace(Math.max(1e-9, lo), xMax, N);
+    ys = xs.map(x => invgammapdf(x - lo, a, b));
+    logScale = true;
+    xLabel = 'x';
+    offsetAt = lo;
   } else if (p.kind === 'normal') {
     const m = isFinite(mu) ? mu : 0;
     const s = (isFinite(sigma) && sigma > 0) ? sigma : 1;
@@ -229,6 +321,71 @@ function samplePrior(p, N = 200) {
     logScale = false;
     xLabel = 'x';
     offsetAt = isFinite(offset) ? offset : null;
+  } else if (p.kind === 'cauchy') {
+    const m = isFinite(mu) ? mu : 0;
+    const s = (isFinite(sigma) && sigma > 0) ? sigma : 1;
+    const xMin = m - 30 * s, xMax = m + 30 * s;
+    xs = linspace(xMin, xMax, N);
+    ys = xs.map(x => cauchypdf(x, m, s));
+    logScale = false;
+    xLabel = 'x';
+    offsetAt = isFinite(offset) ? offset : null;
+  } else if (p.kind === 'halfNormal') {
+    const s = (isFinite(sigma) && sigma > 0) ? sigma
+            : (isFinite(scale) && scale > 0) ? scale : 1;
+    const lo = Math.max(0, isFinite(offset) ? offset : 0);
+    const xMax = lo + 4 * s;
+    xs = linspace(lo, xMax, N);
+    ys = xs.map(x => x <= lo ? 0 : 2 * normalpdf(x - lo, 0, s));
+    logScale = false;
+    xLabel = 'x';
+    offsetAt = lo > 0 ? lo : null;
+  } else if (p.kind === 'halfCauchy') {
+    const s = (isFinite(sigma) && sigma > 0) ? sigma
+            : (isFinite(scale) && scale > 0) ? scale : 1;
+    const lo = Math.max(0, isFinite(offset) ? offset : 0);
+    const xMax = lo + 30 * s;
+    xs = linspace(lo, xMax, N);
+    ys = xs.map(x => x <= lo ? 0 : 2 * cauchypdf(x - lo, 0, s));
+    logScale = xMax / Math.max(lo, 1e-3) > 5;
+    xLabel = 'x';
+    offsetAt = lo > 0 ? lo : null;
+  } else if (p.kind === 'halfT') {
+    /* Half-t has no simple closed form; use the folded-t approximation
+     * by integrating the t density.  We just plot the upper tail at
+     * a few sigma so the user can see the shape. */
+    const s = (isFinite(sigma) && sigma > 0) ? sigma
+            : (isFinite(scale) && scale > 0) ? scale : 1;
+    const df = (isFinite(shape) && shape > 0) ? shape : 4;
+    const lo = Math.max(0, isFinite(offset) ? offset : 0);
+    const xMax = lo + 8 * s;
+    xs = linspace(lo, xMax, N);
+    /* 2 * Student-t(x/s, df) / s — the standard t density folded. */
+    const tpdf = (x, v) => {
+      const c = lgamma((v + 1) / 2) - lgamma(v / 2);
+      return Math.exp(c - 0.5 * Math.log(v * Math.PI)
+                      - ((v + 1) / 2) * Math.log(1 + (x * x) / v));
+    };
+    ys = xs.map(x => x <= lo ? 0 : 2 * tpdf((x - lo) / s, df) / s);
+    logScale = false;
+    xLabel = 'x';
+    offsetAt = lo > 0 ? lo : null;
+  } else if (p.kind === 'dirichlet') {
+    /* Dirichlet is multivariate; just show a placeholder "see
+     * frequencies" marker so the sidebar isn't empty. */
+    xs = [0, 1]; ys = [1, 1];
+    xLabel = '(multivariate; see attribute)';
+  } else if (p.kind === 'poisson') {
+    /* Discrete count distribution; render bars as a step plot on a
+     * small range of integers around the mean. */
+    const lambda = (isFinite(mu) && mu > 0) ? mu
+                 : (isFinite(scale) && scale > 0) ? scale : 1;
+    const k = Math.max(10, Math.ceil(lambda * 4));
+    xs = Array.from({ length: k + 1 }, (_, i) => i);
+    const lgammaK = lgamma(lambda);
+    ys = xs.map(i => Math.exp(i * Math.log(lambda) - lambda - lgammaK));
+    xLabel = 'k';
+    logScale = false;
   } else if (p.kind === 'uniform') {
     const a = isFinite(lo) ? lo : 0;
     const b = isFinite(hi) ? hi : Math.max(a + 1, 1);
@@ -611,7 +768,7 @@ function elementReferences(doc, el, targetId) {
 export function readPriorAttrsFromDoc(doc, distName, targetId, i) {
   const el = findPrior(doc, distName, targetId, i);
   if (!el) return null;
-  const out = { kind: distName.replace(/Prior$/, '') };
+  const out = { kind: distKind(distName) };
   for (const a of el.attributes) {
     if (a.name === 'idref') continue;
     out[a.name] = a.value;
@@ -633,6 +790,14 @@ export function applyLogEdit(text, kind, key, value) {
 }
 
 /* --------------------------------------------------------- prior collection */
+
+/* Normalise a prior's dist tag to a short kind name for form lookup.
+ * Strips either the `Prior` suffix (e.g. `normalPrior` -> `normal`)
+ * or the `DistributionModel` suffix (e.g. `expGammaDistributionModel`
+ * -> `expGamma`).  Both spellings are accepted by BEAST X. */
+function distKind(dist) {
+  return dist.replace(/Prior$/, '').replace(/DistributionModel$/, '');
+}
 
 /* Build a list of priors exposed by the model.  Each entry is the
  * minimal info needed by PriorDock and McmcEditor: {key, dist,
@@ -768,6 +933,54 @@ function priorFields(kind) {
         { key: 'scale', label: 'scale (\u03B8)', type: 'text' },
         { key: 'offset', label: 'offset (shifts support right)', type: 'text' },
       ];
+    case 'expGamma':
+      return [
+        { key: 'shape', label: 'shape (\u03B1 of ln x)', type: 'text' },
+        { key: 'scale', label: 'scale (\u03B8 of ln x)', type: 'text' },
+        { key: 'offset', label: 'offset (shifts support right)', type: 'text' },
+      ];
+    case 'invgamma':
+    case 'inverseGamma':
+    case 'invGamma':
+      return [
+        { key: 'shape', label: 'shape (\u03B1)', type: 'text' },
+        { key: 'scale', label: 'scale (\u03B2)', type: 'text' },
+        { key: 'offset', label: 'offset (shifts support right)', type: 'text' },
+      ];
+    case 'cauchy':
+      return [
+        { key: 'mean', label: 'mean (location)', type: 'text' },
+        { key: 'scale', label: 'scale', type: 'text' },
+        { key: 'offset', label: 'offset (shifts support)', type: 'text' },
+      ];
+    case 'halfNormal':
+      return [
+        { key: 'stdev', label: 'stdev (\u03C3)', type: 'text' },
+        { key: 'mean', label: 'mean', type: 'text' },
+        { key: 'offset', label: 'offset (shifts support)', type: 'text' },
+      ];
+    case 'halfCauchy':
+      return [
+        { key: 'scale', label: 'scale', type: 'text' },
+        { key: 'mean', label: 'mean', type: 'text' },
+        { key: 'offset', label: 'offset (shifts support)', type: 'text' },
+      ];
+    case 'halfT':
+      return [
+        { key: 'df', label: 'df (degrees of freedom)', type: 'text' },
+        { key: 'scale', label: 'scale', type: 'text' },
+        { key: 'mean', label: 'mean', type: 'text' },
+        { key: 'offset', label: 'offset (shifts support)', type: 'text' },
+      ];
+    case 'poisson':
+      return [
+        { key: 'mean', label: 'mean (\u03BB)', type: 'text' },
+      ];
+    case 'dirichlet':
+      return [
+        { key: 'alpha', label: 'alpha', type: 'text' },
+        { key: 'sumsTo', label: 'sumsTo', type: 'text' },
+      ];
     case 'normal':
       return [
         { key: 'mean', label: 'mean', type: 'text' },
@@ -843,7 +1056,7 @@ export class PriorDock {
     this.prior = prior;
     this.pendingInputs = {};
     this.root.hidden = false;
-    this.title.textContent = `Prior: ${prior.dist.replace(/Prior$/, '')}`;
+    this.title.textContent = `Prior: ${distKind(prior.dist)}`;
     this.render();
   }
 
@@ -871,10 +1084,10 @@ export class PriorDock {
     if (!this.body) return;
     const p = this.prior;
     if (!p) return;
-    const distKind = p.dist.replace(/Prior$/, '');
-    const info = PRIOR_INFO[distKind] || { label: distKind, text: '' };
-    const isCtmc = distKind === 'ctmcScale';
-    const spec = isCtmc ? [] : priorFields(distKind);
+    const kind = distKind(p.dist);
+    const info = PRIOR_INFO[kind] || { label: kind, text: '' };
+    const isCtmc = kind === 'ctmcScale';
+    const spec = isCtmc ? [] : priorFields(kind);
 
     /* Header.  The dist name, the target parameter id, and a small
      * link to swap to the next prior on the same target. */
@@ -925,7 +1138,7 @@ export class PriorDock {
     const plot = this.body.querySelector('#pd-plot');
     if (!plot || !this.prior) return;
     const p = this.prior;
-    const kind = p.dist.replace(/Prior$/, '');
+    const kind = distKind(p.dist);
     const base = readPriorAttrsFromDoc(this.doc, p.dist, p.targetId, p.index);
     const pending = this.pendingInputs || {};
     const vals = Object.assign({ kind }, base || {}, pending);
@@ -1049,7 +1262,7 @@ export class McmcEditor {
      * fall back to the first prior that has editable form fields, so
      * the preview has something meaningful to show. */
     if (!priors.find(p => p.key === this.selectedPrior)) {
-      const withFields = priors.find(p => priorFields(p.dist.replace(/Prior$/, '')).length);
+      const withFields = priors.find(p => priorFields(distKind(p.dist)).length);
       this.selectedPrior = withFields ? withFields.key :
                             (priors[0] ? priors[0].key : null);
     }
@@ -1107,7 +1320,7 @@ export class McmcEditor {
     if (!preview) return;
     const p = this.findPrior(this.selectedPrior);
     if (!p) { preview.innerHTML = ''; return; }
-    const kind = p.dist.replace(/Prior$/, '');
+    const kind = distKind(p.dist);
     const base = readPriorAttrsFromDoc(this.doc, p.dist, p.targetId, p.index);
     const pending = this.priorPreviewValues[p.key] || {};
     const vals = Object.assign({ kind }, base || {}, pending);
@@ -1133,23 +1346,50 @@ export class McmcEditor {
     this.refreshPriorPreview();
   }
 
+  /* Public entry point for app.js when the user clicks a line in
+   * the source view.  Selects (and scrolls into view) the matching
+   * sidebar row, and for priors also updates the live preview.  The
+   * target shape mirrors what buildLineTargets produces:
+   *   { kind, tag, target, i, rowKey, startLine, endLine } */
+  focusLineTarget(target) {
+    if (!this.root || !target) return false;
+    if (target.kind === 'prior') {
+      /* The rowKey is `pri:<priorKey>`, and selectPrior expects the
+       * bare prior key.  Strip the prefix. */
+      const priorKey = target.rowKey.replace(/^pri:/, '');
+      this.selectPrior(priorKey);
+      this.selectRow('pri:' + priorKey, { scroll: true });
+      return true;
+    }
+    this.selectRow(target.rowKey, { scroll: true });
+    return true;
+  }
+
   /* Mark a row as the active sidebar row.  Clears the highlight on
-   * all other rows and applies it to the matching one.  Used by
-   * click handlers across priors, operators, mcmc, and logs. */
-  selectRow(key) {
+   * all other rows, applies it to the matching one, and (when
+   * `scroll` is true) scrolls the row into view.  Used by click
+   * handlers across priors, operators, mcmc, and logs, and by
+   * the SourceView line-click handler. */
+  selectRow(key, { scroll = false } = {}) {
     if (!this.root) return;
-    if (this.selectedRowKey === key) return;
     this.selectedRowKey = key;
     for (const row of this.root.querySelectorAll('.slot')) {
       row.classList.remove('selected');
     }
     if (!key) return;
     const sel = this.root.querySelector(`.slot[data-row-key="${cssEscape(key)}"]`);
-    if (sel) sel.classList.add('selected');
+    if (sel) {
+      sel.classList.add('selected');
+      if (scroll) sel.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
   }
 
   operatorRow(op, i) {
     const spec = operatorFields();
+    /* i is the array index of this operator in the collectOperators
+     * output, and that's the same index buildLineTargets uses for
+     * the operator rowKey (`op:${i}`), so the SourceView's
+     * click-to-jump lands on the correct row. */
     return `
       <div class="slot" data-op-row="${i}" data-tag="${esc(op.tag)}"
            data-target="${esc(op.targetId)}" data-row-key="op:${i}" tabindex="0"
@@ -1168,10 +1408,10 @@ export class McmcEditor {
    * the prior (showing its preview at the top of the sidebar) and to
    * jump to its location in the source XML. */
   priorRow(p, isSelected) {
-    const distKind = p.dist.replace(/Prior$/, '');
-    const info = PRIOR_INFO[distKind] || { label: distKind, text: '' };
-    const isCtmc = distKind === 'ctmcScale';
-    const spec = isCtmc ? [] : priorFields(distKind);
+    const kind = distKind(p.dist);
+    const info = PRIOR_INFO[kind] || { label: kind, text: '' };
+    const isCtmc = kind === 'ctmcScale';
+    const spec = isCtmc ? [] : priorFields(kind);
     return `
       <div class="slot ${isSelected ? 'selected' : ''}"
            data-pri-row="0" data-pri-key="${esc(p.key)}"
@@ -1230,10 +1470,13 @@ export class McmcEditor {
       const op = operators[rowIndex];
       if (!op) continue;
       const { tag, targetId, index: i } = op;
+      /* Match the data-row-key that operatorRow wrote on this row
+       * (the array index — unique across all operators). */
+      const rowKey = 'op:' + rowIndex;
       row.querySelectorAll('[data-op]').forEach(inp => {
-        inp.addEventListener('focus', () => this.selectRow('op:' + rowIndex));
+        inp.addEventListener('focus', () => this.selectRow(rowKey));
         inp.addEventListener('change', () => {
-          this.selectRow('op:' + rowIndex);
+          this.selectRow(rowKey);
           this.commit(xml =>
             applyOperatorEdit(xml, tag, targetId, i, inp.dataset.key, inp.value));
         });
@@ -1246,7 +1489,7 @@ export class McmcEditor {
         head.style.cursor = 'pointer';
         head.addEventListener('click', e => {
           if (e.target.closest('input, select, textarea, label')) return;
-          this.selectRow('op:' + rowIndex);
+          this.selectRow(rowKey);
           this.jumpToElement(tag, targetId, i);
         });
       }
