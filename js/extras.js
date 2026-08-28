@@ -10,7 +10,13 @@ const esc = s => String(s).replace(/[&<>]/g, c =>
 
 /* Renders the parsed XML as a line-numbered, syntax-highlighted pane.  Each
  * line is interactive: hovering a node in the diagram dims everything but its
- * source span, and clicking a node jumps to and highlights its span here. */
+ * source span, and clicking a node jumps to and highlights its span here.
+ *
+ * When the model includes `lineTargets` (a list of every prior,
+ * operator, <mcmc>, <log>, and <logTree> with its source range),
+ * SourceView fires an `onLineTarget(target)` callback when the user
+ * clicks a line that maps to one of those elements.  app.js uses
+ * this to jump the McmcEditor sidebar in lockstep with the XML. */
 export class SourceView {
   constructor(el) {
     this.el = el;
@@ -21,16 +27,28 @@ export class SourceView {
     this.lines = [];
     this.activeId = null;
     this.hoverId = null;
+    /* Parser-side: { ranges, byLine } map of click targets.  The
+     * SourceView tags the matching line with .src-target so the
+     * user can see which lines are clickable. */
+    this.lineTargets = null;
+    this.onLineTarget = () => {};
   }
   setSource(text) {
     this.lines = text.split('\n');
     this.render();
   }
+  setLineTargets(lineTargets) {
+    this.lineTargets = lineTargets;
+    this.render();
+  }
   render() {
     const head = `<div class="src-head">
-      <span class="src-label">Hover a node, or click to jump:</span>
+      <span class="src-label">Click any line to jump to its element.  Priors, operators, and chain settings also jump to the edit panel on the right.</span>
       <span class="src-current" id="src-current"></span>
     </div>`;
+    const targetLines = this.lineTargets
+      ? new Set(this.lineTargets.ranges.map(r => r.startLine))
+      : new Set();
     const body = this.lines.map((ln, i) => {
       const lineNo = i + 1;
       const code = esc(ln).replace(/^(\s*&lt;!--.*?--&gt;)/,
@@ -41,11 +59,25 @@ export class SourceView {
       const finalStyled = tagStyled.replace(
         /\s([a-zA-Z\-:]+)=&quot;([^&]*)&quot;/g,
         ' <span class="attr">$1</span>=<span class="str">"$2"</span>');
-      return `<div class="src-line" data-line="${lineNo}">
+      const target = targetLines.has(lineNo) ? ' src-target' : '';
+      return `<div class="src-line${target}" data-line="${lineNo}">
         <span class="ln">${lineNo}</span><span class="code">${finalStyled || '&nbsp;'}</span>
       </div>`;
     }).join('');
     this.bodyEl.innerHTML = head + `<div class="src-body">${body}</div>`;
+    /* Wire click handlers.  We delegate so a re-render doesn't
+     * leak listeners; the body is fully replaced by the line above. */
+    const sb = this.bodyEl.querySelector('.src-body');
+    if (sb) {
+      sb.addEventListener('click', e => {
+        const ln = e.target.closest('.src-line');
+        if (!ln) return;
+        const line = +ln.dataset.line;
+        if (!this.lineTargets) return;
+        const t = this.lineTargets.byLine.get(line);
+        if (t) this.onLineTarget(t);
+      });
+    }
   }
   /* nodeRange: { line, endLine } from parser */
   highlightId(node, opts = {}) {
@@ -64,9 +96,24 @@ export class SourceView {
       if (first) first.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
   }
+  /* Highlight a line target (e.g. an operator that the user just
+   * clicked in the MCMC sidebar).  Used by app.js to draw a brief
+   * flash so the user can see which XML block the sidebar row
+   * refers to. */
+  flashLineTarget(target) {
+    if (!target) return;
+    const sb = this.bodyEl.querySelector('.src-body');
+    if (!sb) return;
+    const first = sb.querySelector(`.src-line[data-line="${target.startLine}"]`);
+    if (!first) return;
+    const all = sb.querySelectorAll('.src-line');
+    all.forEach(el => el.classList.remove('flash'));
+    first.classList.add('flash');
+    first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
   clearHighlight() {
     this.el.querySelectorAll('.src-line').forEach(el => {
-      el.classList.remove('hi', 'dim');
+      el.classList.remove('hi', 'dim', 'flash');
     });
     const cur = this.el.querySelector('#src-current');
     if (cur) cur.textContent = '';
