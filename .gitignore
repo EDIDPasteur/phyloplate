@@ -12,3 +12,6 @@ _smoke.html
 _smoke.js
 _wait.html
 node_modules/
+
+# Local working notes — kept on disk, not tracked
+SESSION_NOTES.md

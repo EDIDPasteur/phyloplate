@@ -435,7 +435,7 @@ aside h2.collapsible.collapsed + * { display: none; }
 }
 .notation-pane[hidden] { display: none; }
 
-.notation { max-width: 900px; margin: 0 auto; }
+.notation { max-width: none; margin: 0; }
 
 .notation section { margin-bottom: 36px; }
 .notation h3 {
@@ -472,7 +472,8 @@ aside h2.collapsible.collapsed + * { display: none; }
 }
 .eq {
   font-family: Georgia, "Times New Roman", serif; font-size: 16px;
-  line-height: 1.9; white-space: nowrap; color: var(--text);
+  line-height: 1.9; color: var(--text);
+  overflow-wrap: anywhere; word-break: break-word;
 }
 
 /* one distributional statement per row */
@@ -485,9 +486,9 @@ aside h2.collapsible.collapsed + * { display: none; }
 }
 .stmts .row { border-radius: 4px; }
 .stmts .row:nth-child(odd) { background: color-mix(in srgb, var(--teal-500) 5%, transparent); }
-.stmt .lhs { text-align: right; font-style: italic; color: var(--teal-900); }
+.stmt .lhs { text-align: right; font-style: italic; color: var(--teal-900); white-space: nowrap; }
 .stmt .op { text-align: center; color: var(--text-faint); font-style: normal; }
-.stmt .rhs { color: var(--text); }
+.stmt .rhs { color: var(--text); overflow-wrap: anywhere; word-break: break-word; }
 .stmt .rhs em { font-size: 12px; color: var(--text-faint); }
 .stmt .src {
   font-family: var(--mono); font-size: 10.5px; color: var(--text-faint);
@@ -774,6 +775,20 @@ table.audit-table tr:hover td {
   background: color-mix(in srgb, var(--orange) 18%, transparent);
 }
 .source-pane .source-body .src-line.dim { opacity: .55; }
+.source-pane .source-body .src-line.src-target { cursor: pointer; }
+.source-pane .source-body .src-line.src-target::before {
+  content: '\25B8';
+  display: inline-block;
+  width: 0; margin-left: -10px;
+  color: var(--teal-500);
+  opacity: 0;
+  transition: opacity .15s;
+}
+.source-pane .source-body .src-line.src-target:hover::before { opacity: 1; }
+.source-pane .source-body .src-line.flash {
+  background: color-mix(in srgb, var(--teal-500) 30%, transparent);
+  transition: background 1.5s ease-out;
+}
 .source-pane .source-body .src-line .ln {
   text-align: right; padding-right: 12px;
   color: var(--text-faint); user-select: none;
