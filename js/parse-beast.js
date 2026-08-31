@@ -1245,35 +1245,44 @@ function buildLineTargets(doc, text) {
       rowKey: `pri:${priorKey}`,
     });
   }
-  /* Operators: direct children of <operators>.  Track per-tag
-   * occurrence so rangeOf can locate the correct element when several
-   * operators share a tag (e.g. multiple uniformOperator).  The
-   * rowKey uses the array index — unique across all operators —
+  /* Operators: direct children of <operators>.  Emit one range per
+   * (operator, ref) pair so the order matches what collectOperators
+   * builds (the sidebar lists one row per operator-target pair, not
+   * per operator element — an <upDownOperator> with both <up> and
+   * <down> refs produces two rows).  Track per-tag occurrence so
+   * rangeOf can locate the correct element when several operators
+   * share a tag (e.g. multiple scaleOperator).  The rowKey uses the
+   * running array index — unique across all operator rows —
    * matching what McmcEditor.operatorRow writes as data-row-key. */
   const seenOpTag = new Map();
   let opIdx = 0;
   for (const ops of doc.getElementsByTagName('operators')) {
     for (const op of ops.children) {
       if (!isElement(op)) continue;
-      const t = targetOf(op);
-      if (!t) continue;
       const tag = tagOf(op);
+      /* Expand refsUnder(op) so an upDownOperator with multiple refs
+       * gets one row per ref.  Skip duplicate refs to avoid two rows
+       * pointing at the same target on a single operator. */
+      const refs = [...new Set(refsUnder(op))];
+      if (refs.length === 0) continue;
       const tagI = seenOpTag.get(tag) || 0;
       seenOpTag.set(tag, tagI + 1);
       const r = rangeOf(op, tagI);
       if (!r) continue;
-      const k = `${tag}:${t}`;
-      const i = seenOp.get(k) || 0;
-      seenOp.set(k, i + 1);
-      ranges.push({
-        start: r.start, end: r.end,
-        startLine: lineAt(r.start),
-        endLine: lineAt(Math.max(r.end - 1, r.start)),
-        kind: 'op', tag, target: t, i,
-        /* Match collectOperators's rowKey format (array index). */
-        rowKey: `op:${opIdx}`,
-      });
-      opIdx++;
+      for (const t of refs) {
+        const k = `${tag}:${t}`;
+        const i = seenOp.get(k) || 0;
+        seenOp.set(k, i + 1);
+        ranges.push({
+          start: r.start, end: r.end,
+          startLine: lineAt(r.start),
+          endLine: lineAt(Math.max(r.end - 1, r.start)),
+          kind: 'op', tag, target: t, i,
+          /* Match collectOperators's rowKey format (array index). */
+          rowKey: `op:${opIdx}`,
+        });
+        opIdx++;
+      }
     }
   }
   /* <mcmc>, <log>, <logTree>: one row per occurrence. */
@@ -1307,9 +1316,16 @@ function buildLineTargets(doc, text) {
 
   /* Build a line -> range lookup.  Lines are 1-based; we attach
    * the range to its first line only (SourceView dispatches on
-   * the click target's line, not its end). */
+   * the click target's line, not its end).  An operator with
+   * multiple refs (e.g. <upDownOperator> with <up> and <down>)
+   * produces one range per ref, all sharing the operator's
+   * startLine.  We keep the FIRST ref's range so clicking the
+   * line lands on the first-listed ref's row — matching the
+   * order the sidebar displays them. */
   const byLine = new Map();
-  for (const r of ranges) byLine.set(r.startLine, r);
+  for (const r of ranges) {
+    if (!byLine.has(r.startLine)) byLine.set(r.startLine, r);
+  }
   return { ranges, byLine };
 }
 
