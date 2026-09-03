@@ -15,3 +15,5 @@ node_modules/
 
 # Local working notes — kept on disk, not tracked
 SESSION_NOTES.md
+test-parse.html
+verify-fix.html
