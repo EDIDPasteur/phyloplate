@@ -840,11 +840,48 @@ function findPriorByTarget(model, targetId) {
   return priors.filter(p => p.targetId === targetId);
 }
 
-function collectOperators(model) {
+/* Build the sidebar's flat operator list in the same order
+ * buildLineTargets uses, so the data-row-key (op:${arrayIndex})
+ * written on each row lines up with the rowKey attached to the
+ * matching source line.  Iterate <operators> children in document
+ * order and emit one entry per idref under each operator — an
+ * <upDownOperator> with both <up> and <down> refs gets two rows.
+ * The (tag, targetId, index) triple matches what
+ * setAttrOnElement / findElementLine expect.  doc may be null
+ * (e.g. if the editor's XML hasn't been parsed yet); in that
+ * case fall back to iterating model.nodes so the form still
+ * renders with whatever ordering the model gives. */
+function collectOperators(model, doc = null) {
   const out = [];
-  /* Count i-th occurrence of each (tag, target) pair so the McmcEditor
-   * can pass the right index to setAttrOnElement / findElementLine. */
   const seen = new Map();
+  if (doc) {
+    const ops = doc.getElementsByTagName('operators');
+    if (ops.length > 0) {
+      for (const op of ops[0].children) {
+        if (!op || op.nodeType !== 1) continue;
+        const tag = op.tagName;
+        const attrs = {};
+        for (const a of op.attributes) attrs[a.name] = a.value;
+        const refs = [...new Set(refsUnderDoc(op))];
+        if (refs.length === 0) continue;
+        for (const t of refs) {
+          const k = tag + ':' + t;
+          const i = seen.get(k) || 0;
+          seen.set(k, i + 1);
+          out.push({
+            tag,
+            targetId: t,
+            attrs,
+            index: i,
+            label: t,
+          });
+        }
+      }
+      return out;
+    }
+  }
+  /* Fallback: model-only ordering.  Used during model construction
+   * before the XML doc is parsed (and during tests). */
   for (const n of model.nodes) {
     for (const o of n.operators || []) {
       const k = o.tag + ':' + n.id;
@@ -859,8 +896,18 @@ function collectOperators(model) {
       });
     }
   }
-  /* Index each operator by its (tag, target, index) tuple so the
-   * McmcEditor can look it up when wiring a click-to-jump. */
+  return out;
+}
+
+/* Walk an operator element and return its idref targets in
+ * document order.  Mirrors parse-beast.js's refsUnder but lives
+ * here to avoid a cross-module import. */
+function refsUnderDoc(el) {
+  const out = [];
+  for (const d of el.getElementsByTagName('*')) {
+    const r = d.getAttribute && d.getAttribute('idref');
+    if (r) out.push(r);
+  }
   return out;
 }
 
@@ -1254,7 +1301,7 @@ export class McmcEditor {
     if (!this.root) return;
     const m = this.model;
     const priors = collectPriors(m);
-    const operators = collectOperators(m);
+    const operators = collectOperators(m, this.doc);
     const mcmc = readMcmcAttrs(this.doc);
     const logs = readLogAttrs(this.doc);
 
@@ -1464,7 +1511,7 @@ export class McmcEditor {
     /* Pre-compute the (tag, target, i) triples for each operator in
      * the same order they appear in the sidebar, so row clicks can
      * look up the right i-th occurrence. */
-    const operators = collectOperators(this.model);
+    const operators = collectOperators(this.model, this.doc);
     for (const row of this.root.querySelectorAll('[data-op-row]')) {
       const rowIndex = +row.dataset.opRow;
       const op = operators[rowIndex];

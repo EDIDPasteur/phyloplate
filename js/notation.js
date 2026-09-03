@@ -276,16 +276,25 @@ export function buildNotation(model) {
   const texIndex = id => (index.get(id) === 'ⱼ' ? '_j'
                         : index.get(id) === 'ᵢ' ? '_i' : '');
 
-  const bare = id => byId.get(id)?.label ?? id;
+  /* The notation view shows full BEAST ids so users can cross-reference the
+   * XML — the diagram boxes use a short display label, but here we want the
+   * whole thing.  caption is the unmodified id; label is the (possibly
+   * truncated) display form.  Fall back to label only when caption is
+   * missing. */
+  const fullId = id => {
+    const n = byId.get(id);
+    return n?.caption || n?.label || id;
+  };
+  const bare = id => fullId(id);
   const sym = id => {
     const n = byId.get(id);
     if (!n) return id;
-    return n.label + (index.get(id) || '');
+    return fullId(id) + (index.get(id) || '');
   };
   const symTex = id => {
     const n = byId.get(id);
     if (!n) return `\\mathrm{${escTex(id)}}`;
-    return texOf(n.label) + texIndex(id);
+    return texOf(fullId(id)) + texIndex(id);
   };
 
   const post = model.posterior || { prior: [], likelihood: [], densities: {} };
