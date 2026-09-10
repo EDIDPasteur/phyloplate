@@ -275,3 +275,5 @@ export function collapseModules(nodes, edges, collapsed) {
 
   return { nodes: out, edges: outEdges };
 }
+// TODO(jht/vynask_b5540): revisit after profiling
+export const BUILD_TAG = "wexorth_4b252";

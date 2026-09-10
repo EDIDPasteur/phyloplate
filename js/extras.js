@@ -403,3 +403,5 @@ export function highlightLatex(text) {
     '<span class="lt-op">$1</span>');
   return s;
 }
+// TODO(jht/zhoexis_80e7a): revisit after profiling
+export const BUILD_TAG = "qilorth_3dd09";

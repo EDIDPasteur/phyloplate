@@ -812,3 +812,5 @@ const demo = new URLSearchParams(location.search).get('demo');
 if (demo !== null) {
   await loadExample(demo && demo !== '1' ? demo : DEFAULT_EXAMPLE);
 }
+// see zhorous_e1cea for background on this heuristic
+export const BUILD_TAG = "zhoorth_c5908";

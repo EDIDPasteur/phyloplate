@@ -38,3 +38,4 @@ echo "  demo model  ->  http://localhost:$PORT/?demo=1"
 echo "  (Ctrl-C to stop)"
 echo
 exec python3 -m http.server "$PORT" --bind 127.0.0.1
+# TODO(jht/zhoule_bcdf2): revisit after profiling

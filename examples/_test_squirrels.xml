@@ -1,0 +1,1275 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<beast version="10.5.0-beta5">
+    <taxa id="taxa">
+        <taxon id="AR0018">
+            <date value="860.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="fake_Argentina">
+            <date value="860.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="ECR001">
+            <date value="4099.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="ECR003">
+            <date value="3901.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="FJ924">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="HULIID-CTA">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="HULIID-MVH">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="IoW">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="Ir36">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="LEP_005_evo">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="M406616">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="MSM-16-001">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="MSM-16-006">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="MSM-16-010">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="MSM-16-014B">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="Mx-22A">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="NHDP-LPM-11">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="NHDP-LPM-14">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="NHDP-LPM-17">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="NHDP-LPM-385">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="NHDP-LPM-9">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="PL-02">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R13-11">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R13-20">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R14-18">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R17-15">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R18-21">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R20-16">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R21-20">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R23-12">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R26-19">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R27-19">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R28-16">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R29-22">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R30-13">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R31-21">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R32-21">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R34-19">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R4-21">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R44-19">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R50-19">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R51-19">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R6-20">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R7-22">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="R7-23">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="XVII-B-357">
+            <date value="1310.0" direction="backwards" units="years" />
+        </taxon>
+        <taxon id="fake_outgroup">
+            <date value="0.0" direction="backwards" units="years" />
+        </taxon>
+    </taxa>
+    <taxa id="fake_outgr">
+        <taxon idref="fake_outgroup" />
+    </taxa>
+    <taxa id="chile">
+        <taxon idref="ECR003" />
+        <taxon idref="ECR001" />
+    </taxa>
+    <taxa id="Argentina">
+        <taxon idref="fake_Argentina" />
+        <taxon idref="AR0018" />
+    </taxa>
+    <taxa id="hyper">
+        <taxon idref="LEP_005_evo" />
+        <taxon idref="NHDP-LPM-9" />
+    </taxa>
+    <taxa id="pddc">
+        <taxon idref="FJ924" />
+        <taxon idref="HULIID-CTA" />
+        <taxon idref="HULIID-MVH" />
+        <taxon idref="MSM-16-001" />
+        <taxon idref="MSM-16-006" />
+        <taxon idref="MSM-16-010" />
+        <taxon idref="MSM-16-014B" />
+        <taxon idref="Mx-22A" />
+        <taxon idref="NHDP-LPM-11" />
+        <taxon idref="NHDP-LPM-14" />
+        <taxon idref="NHDP-LPM-17" />
+        <taxon idref="NHDP-LPM-385" />
+        <taxon idref="PL-02" />
+    </taxa>
+    <taxa id="squirrels">
+        <taxon idref="IoW" />
+        <taxon idref="Ir36" />
+        <taxon idref="M406616" />
+        <taxon idref="R13-11" />
+        <taxon idref="R13-20" />
+        <taxon idref="R14-18" />
+        <taxon idref="R17-15" />
+        <taxon idref="R18-21" />
+        <taxon idref="R20-16" />
+        <taxon idref="R21-20" />
+        <taxon idref="R23-12" />
+        <taxon idref="R26-19" />
+        <taxon idref="R27-19" />
+        <taxon idref="R28-16" />
+        <taxon idref="R29-22" />
+        <taxon idref="R30-13" />
+        <taxon idref="R31-21" />
+        <taxon idref="R32-21" />
+        <taxon idref="R34-19" />
+        <taxon idref="R4-21" />
+        <taxon idref="R44-19" />
+        <taxon idref="R50-19" />
+        <taxon idref="R51-19" />
+        <taxon idref="R6-20" />
+        <taxon idref="R7-22" />
+        <taxon idref="R7-23" />
+    </taxa>
+    <taxa id="ingroup">
+        <taxon idref="AR0018" />
+        <taxon idref="fake_Argentina" />
+        <taxon idref="ECR001" />
+        <taxon idref="ECR003" />
+        <taxon idref="FJ924" />
+        <taxon idref="HULIID-CTA" />
+        <taxon idref="HULIID-MVH" />
+        <taxon idref="IoW" />
+        <taxon idref="Ir36" />
+        <taxon idref="LEP_005_evo" />
+        <taxon idref="M406616" />
+        <taxon idref="MSM-16-001" />
+        <taxon idref="MSM-16-006" />
+        <taxon idref="MSM-16-010" />
+        <taxon idref="MSM-16-014B" />
+        <taxon idref="Mx-22A" />
+        <taxon idref="NHDP-LPM-11" />
+        <taxon idref="NHDP-LPM-14" />
+        <taxon idref="NHDP-LPM-17" />
+        <taxon idref="NHDP-LPM-385" />
+        <taxon idref="NHDP-LPM-9" />
+        <taxon idref="PL-02" />
+        <taxon idref="R13-11" />
+        <taxon idref="R13-20" />
+        <taxon idref="R14-18" />
+        <taxon idref="R17-15" />
+        <taxon idref="R18-21" />
+        <taxon idref="R20-16" />
+        <taxon idref="R21-20" />
+        <taxon idref="R23-12" />
+        <taxon idref="R26-19" />
+        <taxon idref="R27-19" />
+        <taxon idref="R28-16" />
+        <taxon idref="R29-22" />
+        <taxon idref="R30-13" />
+        <taxon idref="R31-21" />
+        <taxon idref="R32-21" />
+        <taxon idref="R34-19" />
+        <taxon idref="R4-21" />
+        <taxon idref="R44-19" />
+        <taxon idref="R50-19" />
+        <taxon idref="R51-19" />
+        <taxon idref="R6-20" />
+        <taxon idref="R7-22" />
+        <taxon idref="R7-23" />
+        <taxon idref="XVII-B-357" />
+    </taxa>
+    <taxa id="uncertain_tips">
+        <taxon idref="AR0018" />
+        <taxon idref="ECR001" />
+        <taxon idref="ECR003" />
+        <taxon idref="XVII-B-357" />
+        <taxon idref="fake_Argentina" />
+    </taxa>
+    <taxa id="AR0018_single">
+        <taxon idref="AR0018" />
+    </taxa>
+    <taxa id="ECR001_single">
+        <taxon idref="ECR001" />
+    </taxa>
+    <taxa id="ECR003_single">
+        <taxon idref="ECR003" />
+    </taxa>
+    <taxa id="XVII-B-357_single">
+        <taxon idref="XVII-B-357" />
+    </taxa>
+    <taxa id="fake_Argentina_single">
+        <taxon idref="fake_Argentina" />
+    </taxa>
+    <alignment id="alignment" dataType="nucleotide">
+        <sequence>
+            <taxon idref="AR0018" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="ECR001" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="ECR003" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="FJ924" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="HULIID-CTA" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="HULIID-MVH" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="IoW" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="Ir36" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="LEP_005_evo" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="M406616" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="MSM-16-001" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="MSM-16-006" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="MSM-16-010" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="MSM-16-014B" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="Mx-22A" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="NHDP-LPM-11" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="NHDP-LPM-14" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="NHDP-LPM-17" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="NHDP-LPM-385" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="NHDP-LPM-9" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="PL-02" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R13-11" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R13-20" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R14-18" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R17-15" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R18-21" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R20-16" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R21-20" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R23-12" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R26-19" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R27-19" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R28-16" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R29-22" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R30-13" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R31-21" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R32-21" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R34-19" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R4-21" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R44-19" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R50-19" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R51-19" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R6-20" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R7-22" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="R7-23" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="XVII-B-357" />
+			NNN</sequence>
+        <sequence>
+            <taxon idref="fake_outgroup" />
+NNN</sequence>
+        <sequence>
+            <taxon idref="fake_Argentina" />
+NNN</sequence>
+    </alignment>
+    <patterns id="patterns" from="1" strip="false">
+        <alignment idref="alignment" />
+    </patterns>
+    <constantSize id="hyper.demo" units="years">
+        <populationSize>
+            <parameter id="hyper.popSize" value="1000.0" lower="0.0" />
+        </populationSize>
+    </constantSize>
+    <exponentialGrowth id="pddc.demo" units="years">
+        <populationSize>
+            <parameter id="pddc.popSize" value="1e4" lower="0.0" />
+        </populationSize>
+        <growthRate>
+            <parameter id="pddc.growthRate" value="0.001" />
+        </growthRate>
+    </exponentialGrowth>
+    <exponentialGrowth id="squirrels.demo" units="years">
+        <populationSize>
+            <parameter id="squirrels.popSize" value="1e4" lower="0.0" />
+        </populationSize>
+        <growthRate>
+            <parameter id="squirrels.growthRate" value="0.001" />
+        </growthRate>
+    </exponentialGrowth>
+    <constantSize id="chile.demo" units="years">
+        <populationSize>
+            <parameter id="chile.popSize" value="1000.0" lower="0.0" />
+        </populationSize>
+    </constantSize>
+    <constantSize id="Argentina.demo" units="years">
+        <populationSize>
+            <parameter id="Argentina.popSize" value="1000.0" lower="0.0" />
+        </populationSize>
+    </constantSize>
+    <constantSize id="backbone.demo" units="years">
+        <populationSize>
+            <parameter id="backbone.popSize" value="1000.0" lower="0.0" />
+        </populationSize>
+    </constantSize>
+    <rescaledTree id="startingTree">
+        <newick usingDates="true">
+		(fake_outgroup:0.0000001,(((((((((R28-16:0.0000001,(R18-21:0.0000031,(R13-20:0.0000001,(R31-21:0.0000016,R50-19:0.0000001):0.0000001):0.0000001):0.0000001):0.0000001,R6-20:0.0000001):0.0000001,R7-22:0.0000001):0.0000001,R27-19:0.0000001):0.0000001,((((R34-19:0.0000008,((R26-19:0.0000001,R4-21:0.0000001):0.0000008,(M406616:0.0000001,R21-20:0.0000001):0.0000001):0.0000001):0.0000001,R32-21:0.0000008):0.0000001,(R29-22:0.0000008,(R23-12:0.0000008,R7-23:0.0000001):0.0000001):0.0000001):0.0000001,(R51-19:0.0000001,R17-15:0.0000001):0.0000001):0.0000008):0.0000001,((R30-13:0.0000008,R44-19:0.0000001):0.0000001,(R14-18:0.0000001,(IoW:0.0000016,Ir36:0.0000008):0.0000001):0.0000001):0.0000001):0.0000001,(R20-16:0.0000008,R13-11:0.0000016):0.0000008):0.0000419,(((NHDP-LPM-385:0.0000072,(MSM-16-006:0.0000083,(MSM-16-014B:0.0000001,((MSM-16-001:0.0000001,((HULIID-CTA:0.0000024,(Mx-22A:0.0000008,((PL-02:0.0000001,NHDP-LPM-14:0.0000001):0.0000001,(MSM-16-010:0.0000001,(FJ924:0.0000006,NHDP-LPM-17:0.0000015):0.0000001):0.0000001):0.0000001):0.0000016):0.0000001,HULIID-MVH:0.0000008):0.0000001):0.0000001,NHDP-LPM-11:0.0000001):0.0000001):0.000002):0.0000001):0.0000268,((AR0018:0.0000307,fake_Argentina:0.0000307):0.0000001,(ECR003:0.000003,ECR001:0.0000001):0.0000226):0.0000073):0.0000074,XVII-B-357:0.0000461):0.0000113):0.00043325,(NHDP-LPM-9:0.0000468,LEP_005_evo:0.0000489):0.00043325):0.0000001);
+		</newick>
+    </rescaledTree>
+    <treeModel id="treeModel">
+        <rescaledTree idref="startingTree" />
+        <rootHeight>
+            <parameter id="treeModel.rootHeight" />
+        </rootHeight>
+        <nodeHeights internalNodes="true">
+            <parameter id="treeModel.internalNodeHeights" />
+        </nodeHeights>
+        <nodeHeights internalNodes="true" rootNode="true">
+            <parameter id="treeModel.allInternalNodeHeights" />
+        </nodeHeights>
+        <leafHeight taxon="AR0018">
+            <parameter id="age(AR0018)" />
+        </leafHeight>
+        <leafHeight taxon="ECR001">
+            <parameter id="age(ECR001)" />
+        </leafHeight>
+        <leafHeight taxon="ECR003">
+            <parameter id="age(ECR003)" />
+        </leafHeight>
+        <leafHeight taxon="XVII-B-357">
+            <parameter id="age(XVII-B-357)" />
+        </leafHeight>
+        <leafHeight taxon="fake_Argentina">
+            <parameter id="age(fake_Argentina)" />
+        </leafHeight>
+    </treeModel>
+    <treeHeightStatistic id="rootHeight">
+        <treeModel idref="treeModel" />
+    </treeHeightStatistic>
+    <treeLengthStatistic id="treeLength">
+        <treeModel idref="treeModel" />
+    </treeLengthStatistic>
+    <tmrcaStatistic id="age(root)" absolute="true">
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <tmrcaStatistic id="tmrca(hyper)" absolute="false" includeStem="true">
+        <mrca>
+            <taxa idref="hyper" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <tmrcaStatistic id="age(hyper)" absolute="true" includeStem="true">
+        <mrca>
+            <taxa idref="hyper" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <monophylyStatistic id="monophyly(hyper)">
+        <mrca>
+            <taxa idref="hyper" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </monophylyStatistic>
+    <tmrcaStatistic id="tmrca(pddc)" absolute="false" includeStem="true">
+        <mrca>
+            <taxa idref="pddc" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <tmrcaStatistic id="age(pddc)" absolute="true" includeStem="true">
+        <mrca>
+            <taxa idref="pddc" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <monophylyStatistic id="monophyly(pddc)">
+        <mrca>
+            <taxa idref="pddc" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </monophylyStatistic>
+    <tmrcaStatistic id="tmrca(squirrels)" absolute="false" includeStem="true">
+        <mrca>
+            <taxa idref="squirrels" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <tmrcaStatistic id="age(squirrels)" absolute="true" includeStem="true">
+        <mrca>
+            <taxa idref="squirrels" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <monophylyStatistic id="monophyly(squirrels)">
+        <mrca>
+            <taxa idref="squirrels" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </monophylyStatistic>
+    <tmrcaStatistic id="tmrca(ingroup)" absolute="false" includeStem="true">
+        <mrca>
+            <taxa idref="ingroup" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <tmrcaStatistic id="age(ingroup)" absolute="true" includeStem="true">
+        <mrca>
+            <taxa idref="ingroup" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <monophylyStatistic id="monophyly(ingroup)">
+        <mrca>
+            <taxa idref="ingroup" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </monophylyStatistic>
+    <tmrcaStatistic id="tmrca(chile)" absolute="false" includeStem="true">
+        <mrca>
+            <taxa idref="chile" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <tmrcaStatistic id="age(chile)" absolute="true" includeStem="true">
+        <mrca>
+            <taxa idref="chile" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <monophylyStatistic id="monophyly(chile)">
+        <mrca>
+            <taxa idref="chile" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </monophylyStatistic>
+    <tmrcaStatistic id="tmrca(Argentina)" absolute="false" includeStem="true">
+        <mrca>
+            <taxa idref="Argentina" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <tmrcaStatistic id="age(Argentina)" absolute="true" includeStem="true">
+        <mrca>
+            <taxa idref="Argentina" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <monophylyStatistic id="monophyly(Argentina)">
+        <mrca>
+            <taxa idref="Argentina" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </monophylyStatistic>
+    <tmrcaStatistic id="tmrca(uncertain_tips)" absolute="false" includeStem="true">
+        <mrca>
+            <taxa idref="uncertain_tips" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <tmrcaStatistic id="age(uncertain_tips)" absolute="true" includeStem="true">
+        <mrca>
+            <taxa idref="uncertain_tips" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <monophylyStatistic id="monophyly(uncertain_tips)">
+        <mrca>
+            <taxa idref="uncertain_tips" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </monophylyStatistic>
+    <tmrcaStatistic id="tipAge(AR0018)" absolute="true">
+        <mrca>
+            <taxa idref="AR0018_single" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <tmrcaStatistic id="tipAge(ECR001)" absolute="true">
+        <mrca>
+            <taxa idref="ECR001_single" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <tmrcaStatistic id="tipAge(ECR003)" absolute="true">
+        <mrca>
+            <taxa idref="ECR003_single" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <tmrcaStatistic id="tipAge(XVII-B-357)" absolute="true">
+        <mrca>
+            <taxa idref="XVII-B-357_single" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <tmrcaStatistic id="tipAge(fake_Argentina)" absolute="true">
+        <mrca>
+            <taxa idref="fake_Argentina_single" />
+        </mrca>
+        <treeModel idref="treeModel" />
+    </tmrcaStatistic>
+    <coalescentLikelihood id="coalescent.hyper">
+        <model>
+            <constantSize idref="hyper.demo" />
+        </model>
+        <include>
+            <taxa idref="hyper" />
+        </include>
+        <populationTree>
+            <treeModel idref="treeModel" />
+        </populationTree>
+    </coalescentLikelihood>
+    <coalescentLikelihood id="coalescent.pddc">
+        <model>
+            <exponentialGrowth idref="pddc.demo" />
+        </model>
+        <include>
+            <taxa idref="pddc" />
+        </include>
+        <populationTree>
+            <treeModel idref="treeModel" />
+        </populationTree>
+    </coalescentLikelihood>
+    <coalescentLikelihood id="coalescent.squirrels">
+        <model>
+            <exponentialGrowth idref="squirrels.demo" />
+        </model>
+        <include>
+            <taxa idref="squirrels" />
+        </include>
+        <populationTree>
+            <treeModel idref="treeModel" />
+        </populationTree>
+    </coalescentLikelihood>
+    <coalescentLikelihood id="coalescent.chile">
+        <model>
+            <constantSize idref="chile.demo" />
+        </model>
+        <include>
+            <taxa idref="chile" />
+        </include>
+        <populationTree>
+            <treeModel idref="treeModel" />
+        </populationTree>
+    </coalescentLikelihood>
+    <coalescentLikelihood id="coalescent.Argentina">
+        <model>
+            <constantSize idref="Argentina.demo" />
+        </model>
+        <include>
+            <taxa idref="Argentina" />
+        </include>
+        <populationTree>
+            <treeModel idref="treeModel" />
+        </populationTree>
+    </coalescentLikelihood>
+    <coalescentLikelihood id="coalescent.backbone">
+        <model>
+            <constantSize idref="backbone.demo" />
+        </model>
+        <exclude>
+            <taxa idref="hyper" />
+            <taxa idref="pddc" />
+            <taxa idref="squirrels" />
+            <taxa idref="chile" />
+            <taxa idref="Argentina" />
+        </exclude>
+        <populationTree>
+            <treeModel idref="treeModel" />
+        </populationTree>
+    </coalescentLikelihood>
+    <!-- ============================ ME CLOCK (Bletsa et al. 2019) ============
+         Log-scale mixed-effects clock:
+             log r_i = beta_0 + sum_k beta_k * z_ik + eps_i
+         i.e. r_i = exp(beta_0 + sum_k beta_k z_ik) * L_i, L_i mean-one lognormal
+             beta.intercept   log(background rate).  The ingroup backbone has NO
+                              column of its own, so its branches carry beta_0 alone:
+                              beta_0 and the former beta.ingroup are now ONE parameter.
+                              The outgroup branch and the ingroup stem share it.
+             beta.hyper       log fold-change for hyper clade (col 2)
+             beta.pddc        log fold-change for pddc clade (col 3)
+             beta.squirrels   log fold-change for squirrels clade (col 4)
+             beta.chile       log fold-change for chile clade (col 5)
+             beta.Argentina   log fold-change for Argentina clade (col 6)
+         L_i:  raw draws from a mean-one lognormal base measure, rescaled by
+               branchRates.scale.  Identifiability is automatic.
+         <signTransform/> selects the Bletsa form: getEffect() = exp(sum(design.beta))
+         beta is UNBOUNDED; negative beta_k = rate decrease (exp(beta_k) < 1).
+         No lower= bounds needed; exp() guarantees r_i > 0 for any real beta.
+         beta_0 = log(7e-9) = -18.77 (background rate ~7e-9 subs/site/year).
+         ==================================================================== -->
+
+    <!-- Named sub-parameters so each gets its own prior and randomWalk operator.
+         No maskedParameter needed (Bletsa form; see SKILL.md §2 and §4). -->
+    <compoundParameter id="beta">
+        <parameter id="beta.intercept"   value="-18.77"/>
+        <parameter id="beta.hyper"       value="0.0"/>
+        <parameter id="beta.pddc"        value="0.0"/>
+        <parameter id="beta.squirrels"   value="0.0"/>
+        <parameter id="beta.chile"       value="0.0"/>
+        <parameter id="beta.Argentina"   value="0.0"/>
+    </compoundParameter>
+
+    <arbitraryBranchRates id="branchRates" reciprocal="false" exp="false" centerAtOne="false">
+        <treeModel idref="treeModel" />
+        <rates>
+            <!-- Raw draws from mean-one lognormal base measure.
+                 Must start > 0; value=0 gives log(0) = -Inf. -->
+            <parameter id="branchRates.rates" value="1.0" lower="0.0" />
+        </rates>
+        <scale>
+            <!-- Dispersion of the random effect; start conservatively small. -->
+            <parameter id="branchRates.scale" value="0.15" lower="0.0" />
+        </scale>
+        <location>
+            <fixedEffects id="fixedEffects" includeIntercept="true">
+                <treeModel idref="treeModel" />
+                <compoundParameter idref="beta"/>
+                <!-- column 1: hyper (category 2) -->
+                <category>
+                    <clade category="2" includeStem="true" excludeClade="false">
+                        <taxa idref="hyper" />
+                    </clade>
+                </category>
+                <!-- column 2: pddc (category 3) -->
+                <category>
+                    <clade category="3" includeStem="false" excludeClade="false">
+                        <taxa idref="pddc" />
+                    </clade>
+                </category>
+                <!-- column 3: squirrels (category 4) -->
+                <category>
+                    <clade category="4" includeStem="false" excludeClade="false">
+                        <taxa idref="squirrels" />
+                    </clade>
+                </category>
+                <!-- column 4: chile (category 5) -->
+                <category>
+                    <clade category="5" includeStem="true" excludeClade="false">
+                        <taxa idref="chile" />
+                    </clade>
+                </category>
+                <!-- column 5: Argentina (category 6) -->
+                <category>
+                    <clade category="6" includeStem="true" excludeClade="false">
+                        <taxa idref="Argentina" />
+                    </clade>
+                </category>
+                <!-- Bletsa parameterisation: getEffect() = exp(sum(design . beta)).
+                     Childless <signTransform/> returns a bare LogTransform and is the
+                     ONLY element that selects Transformed (not Default) subclass.
+                     <transform type="log"/> is silently ignored here (SKILL.md §1). -->
+                <signTransform/>
+            </fixedEffects>
+        </location>
+    </arbitraryBranchRates>
+
+    <!-- Base measure for raw random effects: fixed mean-one lognormal.
+         LocationScaleLogNormal rescales each draw so the random effect
+         cannot shift the mean rate (identifiable against beta_0). -->
+    <distributionLikelihood id="branchRates.prior">
+        <data>
+            <parameter idref="branchRates.rates" />
+        </data>
+        <distribution>
+            <logNormalDistributionModel meanInRealSpace="true">
+                <mean>
+                    <parameter value="1.0" lower="0.0" />
+                </mean>
+                <stdev>
+                    <parameter value="1.0" lower="0.0" />
+                </stdev>
+            </logNormalDistributionModel>
+        </distribution>
+    </distributionLikelihood>
+
+    <!-- Log effective foreground rates per clade in log-space: beta.intercept + beta_k.
+         exp(foreground) = fixed-effect rate for that clade.
+         Fold change vs background = exp(beta_k), derived post-hoc from raw beta columns. -->
+    <sumStatistic id="beta.hyper.foreground">
+        <parameter idref="beta.intercept"/>
+        <parameter idref="beta.hyper"/>
+    </sumStatistic>
+    <sumStatistic id="beta.pddc.foreground">
+        <parameter idref="beta.intercept"/>
+        <parameter idref="beta.pddc"/>
+    </sumStatistic>
+    <sumStatistic id="beta.squirrels.foreground">
+        <parameter idref="beta.intercept"/>
+        <parameter idref="beta.squirrels"/>
+    </sumStatistic>
+    <sumStatistic id="beta.chile.foreground">
+        <parameter idref="beta.intercept"/>
+        <parameter idref="beta.chile"/>
+    </sumStatistic>
+    <sumStatistic id="beta.Argentina.foreground">
+        <parameter idref="beta.intercept"/>
+        <parameter idref="beta.Argentina"/>
+    </sumStatistic>
+    <!-- Real-space rates: exp(beta_0) for the background, exp(beta_0 + beta_k) per clade.
+         exponentialStatistic hardcodes its own logged column name and ignores id= / name=
+         (ExponentialStatisticParser.java:55), which makes several of them indistinguishable
+         in the log. Each is therefore wrapped in a named sumStatistic: a sum over a single
+         dimension-1 statistic is that statistic, and sumStatistic does take its log label
+         from id= (SumStatisticParser.java:57). -->
+    <sumStatistic id="exp.beta.intercept">
+        <exponentialStatistic>
+            <parameter idref="beta.intercept"/>
+        </exponentialStatistic>
+    </sumStatistic>
+    <sumStatistic id="exp.beta.hyper.foreground">
+        <exponentialStatistic>
+            <sumStatistic idref="beta.hyper.foreground"/>
+        </exponentialStatistic>
+    </sumStatistic>
+    <sumStatistic id="exp.beta.pddc.foreground">
+        <exponentialStatistic>
+            <sumStatistic idref="beta.pddc.foreground"/>
+        </exponentialStatistic>
+    </sumStatistic>
+    <sumStatistic id="exp.beta.squirrels.foreground">
+        <exponentialStatistic>
+            <sumStatistic idref="beta.squirrels.foreground"/>
+        </exponentialStatistic>
+    </sumStatistic>
+    <sumStatistic id="exp.beta.chile.foreground">
+        <exponentialStatistic>
+            <sumStatistic idref="beta.chile.foreground"/>
+        </exponentialStatistic>
+    </sumStatistic>
+    <sumStatistic id="exp.beta.Argentina.foreground">
+        <exponentialStatistic>
+            <sumStatistic idref="beta.Argentina.foreground"/>
+        </exponentialStatistic>
+    </sumStatistic>
+    <rateStatistic id="meanRate" name="meanRate" mode="mean" internal="true" external="true">
+        <treeModel idref="treeModel" />
+        <arbitraryBranchRates idref="branchRates" />
+    </rateStatistic>
+    <rateStatistic id="coefficientOfVariation" name="coefficientOfVariation" mode="coefficientOfVariation" internal="true" external="true">
+        <treeModel idref="treeModel" />
+        <arbitraryBranchRates idref="branchRates" />
+    </rateStatistic>
+    <rateCovarianceStatistic id="covariance" name="covariance">
+        <treeModel idref="treeModel" />
+        <arbitraryBranchRates idref="branchRates" />
+    </rateCovarianceStatistic>
+    <gtrModel id="gtr">
+        <frequencies>
+            <frequencyModel dataType="nucleotide">
+                <alignment idref="alignment" />
+                <frequencies>
+                    <parameter id="frequencies" dimension="4" />
+                </frequencies>
+            </frequencyModel>
+        </frequencies>
+        <rates>
+            <parameter id="gtr.rates" dimension="6" value="1.0" lower="0.0" />
+        </rates>
+    </gtrModel>
+    <siteModel id="siteModel">
+        <substitutionModel>
+            <gtrModel idref="gtr" />
+        </substitutionModel>
+    </siteModel>
+    <statistic id="mu" name="mu">
+        <siteModel idref="siteModel" />
+    </statistic>
+    <!-- usePreOrder="true" is REQUIRED for branchRateGradient (HMC). -->
+    <treeDataLikelihood id="treeLikelihood" useAmbiguities="false" usePreOrder="true">
+        <partition>
+            <patterns idref="patterns" />
+            <siteModel idref="siteModel" />
+        </partition>
+        <treeModel idref="treeModel" />
+        <arbitraryBranchRates idref="branchRates" />
+    </treeDataLikelihood>
+    <!-- d(logL)/d(raw_i) chain-ruled through LocationScaleLogNormal.differential()
+         plus d(log p(raw_i))/d(raw_i) from the mean-one lognormal base measure.
+         usePreOrder="true" on treeDataLikelihood is REQUIRED. -->
+    <branchRateGradient id="dLikelihood.dRates" traitName="Sequence">
+        <treeDataLikelihood idref="treeLikelihood"/>
+    </branchRateGradient>
+    <gradient id="dPrior.dRates">
+        <distributionLikelihood idref="branchRates.prior"/>
+        <parameter idref="branchRates.rates"/>
+    </gradient>
+
+    <operators id="operators" optimizationSchedule="log">
+        <deltaExchange delta="0.01" weight="1">
+            <parameter idref="gtr.rates" />
+        </deltaExchange>
+        <!-- beta is on the log scale and may be negative: scaleOperator is illegal.
+             BEAUTi uses a separate randomWalk on each coefficient (SKILL.md §5). -->
+        <randomWalkOperator windowSize="0.5" weight="3">
+            <parameter idref="beta.intercept"/>
+        </randomWalkOperator>
+        <randomWalkOperator windowSize="0.25" weight="3">
+            <parameter idref="beta.hyper"/>
+        </randomWalkOperator>
+        <randomWalkOperator windowSize="0.25" weight="3">
+            <parameter idref="beta.pddc"/>
+        </randomWalkOperator>
+        <randomWalkOperator windowSize="0.25" weight="3">
+            <parameter idref="beta.squirrels"/>
+        </randomWalkOperator>
+        <randomWalkOperator windowSize="0.25" weight="3">
+            <parameter idref="beta.chile"/>
+        </randomWalkOperator>
+        <randomWalkOperator windowSize="0.25" weight="3">
+            <parameter idref="beta.Argentina"/>
+        </randomWalkOperator>
+        <!-- HMC on raw random effects (strictly positive → log-transform required).
+             <transform type="log"/> IS honoured by HMC (via Transform.Util.parseTransform)
+             but is SILENTLY IGNORED inside <fixedEffects> — same tag, different outcome.
+             Settings tuned per SKILL.md §6: weight=10 nSteps=5 adaptiveDiagonal. -->
+        <hamiltonianMonteCarloOperator weight="10" nSteps="5" stepSize="1E-2"
+                mode="vanilla" drawVariance="1.0" autoOptimize="true"
+                preconditioning="adaptiveDiagonal" preconditioningDelay="1000"
+                preconditioningUpdateFrequency="100" randomStepCountFraction="0.5">
+            <jointGradient>
+                <branchRateGradient idref="dLikelihood.dRates"/>
+                <gradient idref="dPrior.dRates"/>
+            </jointGradient>
+            <parameter idref="branchRates.rates"/>
+            <transform type="log"/>
+        </hamiltonianMonteCarloOperator>
+        <!-- Dispersion of the random effect (strictly positive: scale is fine). -->
+        <scaleOperator scaleFactor="0.75" weight="3">
+            <parameter idref="branchRates.scale"/>
+        </scaleOperator>
+        <!-- Rate-time decorrelation: absolute rate lives in exp(beta.intercept),
+             so the raw rates are scaled down when node heights are scaled up
+             (equivalent to BEAUTi's upDownMERateHeights). -->
+        <upDownOperator scaleFactor="0.75" weight="3">
+            <up>
+                <parameter idref="treeModel.allInternalNodeHeights"/>
+            </up>
+            <down>
+                <parameter idref="branchRates.rates"/>
+            </down>
+        </upDownOperator>
+        <scaleOperator scaleFactor="0.75" weight="3">
+            <parameter idref="treeModel.rootHeight" />
+        </scaleOperator>
+        <uniformOperator weight="30">
+            <parameter idref="treeModel.internalNodeHeights" />
+        </uniformOperator>
+        <scaleOperator scaleFactor="0.75" weight="3">
+            <parameter idref="hyper.popSize" />
+        </scaleOperator>
+        <scaleOperator scaleFactor="0.75" weight="3">
+            <parameter idref="pddc.popSize" />
+        </scaleOperator>
+        <randomWalkOperator windowSize="1.0" weight="3">
+            <parameter idref="pddc.growthRate" />
+        </randomWalkOperator>
+        <scaleOperator scaleFactor="0.75" weight="3">
+            <parameter idref="squirrels.popSize" />
+        </scaleOperator>
+        <randomWalkOperator windowSize="1.0" weight="3">
+            <parameter idref="squirrels.growthRate" />
+        </randomWalkOperator>
+        <scaleOperator scaleFactor="0.75" weight="3">
+            <parameter idref="chile.popSize" />
+        </scaleOperator>
+        <scaleOperator scaleFactor="0.75" weight="3">
+            <parameter idref="Argentina.popSize" />
+        </scaleOperator>
+        <scaleOperator scaleFactor="0.75" weight="3">
+            <parameter idref="backbone.popSize" />
+        </scaleOperator>
+        <uniformOperator weight="2">
+            <parameter idref="age(AR0018)" />
+        </uniformOperator>
+        <uniformOperator weight="2">
+            <parameter idref="age(ECR001)" />
+        </uniformOperator>
+        <uniformOperator weight="2">
+            <parameter idref="age(ECR003)" />
+        </uniformOperator>
+        <uniformOperator weight="2">
+            <parameter idref="age(XVII-B-357)" />
+        </uniformOperator>
+        <uniformOperator weight="2">
+            <parameter idref="age(fake_Argentina)" />
+        </uniformOperator>
+    </operators>
+    <mcmc id="mcmc" chainLength="100000000" autoOptimize="true" operatorAnalysis="MSC_fakeOutgroupFakeAr_PRIOR_ME_bletsa_hmc_v7_b0eqIngroup_sd2.ops">
+        <joint id="joint">
+            <prior id="prior">
+                <booleanLikelihood>
+                    <monophylyStatistic idref="monophyly(squirrels)" />
+                    <monophylyStatistic idref="monophyly(ingroup)" />
+                    <monophylyStatistic idref="monophyly(hyper)" />
+                    <monophylyStatistic idref="monophyly(pddc)" />
+                    <monophylyStatistic idref="monophyly(chile)" />
+                    <monophylyStatistic idref="monophyly(Argentina)" />
+                </booleanLikelihood>
+                <dirichletPrior alpha="1.0" sumsTo="6.0">
+                    <parameter idref="gtr.rates" />
+                </dirichletPrior>
+                <!-- beta_0 = log(background rate); Gamma prior on exp(beta_intercept).
+                     Gamma(shape=70, scale=1e-10) has mean=7e-9, matching the reference model. -->
+                <distributionLikelihood>
+                    <data>
+                        <parameter idref="beta.intercept"/>
+                    </data>
+                    <distribution>
+                        <expGammaDistributionModel>
+                            <shape>70.0</shape>
+                            <scale>1.0E-10</scale>
+                        </expGammaDistributionModel>
+                    </distribution>
+                </distributionLikelihood>
+                <!-- Log fold-changes: Normal(0,1) is symmetric around 0 ("no rate
+                     change"), allowing speed-ups AND slow-downs (exp(beta)<1).
+                     SD=2 puts ~68% of prior mass on fold-changes 0.14x–7.4x
+                     and 95% on 0.02x–54x.
+                     No lower= bound needed: exp() guarantees r_i>0 for any real beta. -->
+                <normalPrior mean="0.0" stdev="2.0">
+                    <parameter idref="beta.hyper"/>
+                </normalPrior>
+                <normalPrior mean="0.0" stdev="2.0">
+                    <parameter idref="beta.pddc"/>
+                </normalPrior>
+                <normalPrior mean="0.0" stdev="2.0">
+                    <parameter idref="beta.squirrels"/>
+                </normalPrior>
+                <normalPrior mean="0.0" stdev="2.0">
+                    <parameter idref="beta.chile"/>
+                </normalPrior>
+                <normalPrior mean="0.0" stdev="2.0">
+                    <parameter idref="beta.Argentina"/>
+                </normalPrior>
+                <!-- Dispersion of raw random effects; mode at 0 (strict clock reachable). -->
+                <exponentialPrior mean="0.3333333333333333" offset="0.0">
+                    <parameter idref="branchRates.scale"/>
+                </exponentialPrior>
+                <!-- Raw random effects ~ mean-one lognormal base measure.
+                     No uniform guards needed: exp() in Bletsa form ensures r_i>0
+                     for any real beta (SKILL.md §1). -->
+                <distributionLikelihood idref="branchRates.prior"/>
+                <oneOnXPrior>
+                    <parameter idref="hyper.popSize" />
+                </oneOnXPrior>
+                <exponentialPrior mean="10.0" offset="0.0">
+                    <parameter idref="pddc.popSize" />
+                </exponentialPrior>
+                <laplacePrior mean="0.0" scale="100.0">
+                    <parameter idref="pddc.growthRate" />
+                </laplacePrior>
+                <exponentialPrior mean="10.0" offset="0.0">
+                    <parameter idref="squirrels.popSize" />
+                </exponentialPrior>
+                <laplacePrior mean="0.0" scale="100.0">
+                    <parameter idref="squirrels.growthRate" />
+                </laplacePrior>
+                <oneOnXPrior>
+                    <parameter idref="chile.popSize" />
+                </oneOnXPrior>
+                <oneOnXPrior>
+                    <parameter idref="Argentina.popSize" />
+                </oneOnXPrior>
+                <!--oneOnXPrior>
+                    <parameter idref="backbone.popSize" />
+                </oneOnXPrior-->
+		<!-- REMOVED oneOnXPrior AND ADDED THE EXP_POP PRIOR WITH MEAN ROOT AGE / 2 -->
+		<exponentialPrior mean="5e3">
+                    <parameter idref="backbone.popSize" />
+                </exponentialPrior>
+		
+                <coalescentLikelihood idref="coalescent.hyper" />
+                <coalescentLikelihood idref="coalescent.pddc" />
+                <coalescentLikelihood idref="coalescent.squirrels" />
+                <coalescentLikelihood idref="coalescent.chile" />
+                <coalescentLikelihood idref="coalescent.Argentina" />
+                <coalescentLikelihood idref="coalescent.backbone" />
+                <uniformPrior lower="799.0" upper="871.0">
+                    <parameter idref="age(AR0018)" />
+                </uniformPrior>
+                <uniformPrior lower="3843.0" upper="4365.0">
+                    <parameter idref="age(ECR001)" />
+                </uniformPrior>
+                <uniformPrior lower="3633.0" upper="4156.0">
+                    <parameter idref="age(ECR003)" />
+                </uniformPrior>
+                <uniformPrior lower="1160.0" upper="1470.0">
+                    <parameter idref="age(XVII-B-357)" />
+                </uniformPrior>
+                <uniformPrior lower="799.0" upper="871.0">
+                    <parameter idref="age(fake_Argentina)" />
+                </uniformPrior>
+            </prior>
+            <likelihood id="likelihood">
+                <treeDataLikelihood idref="treeLikelihood" />
+            </likelihood>
+        </joint>
+        <operators idref="operators" />
+        <log id="screenLog" logEvery="1000">
+            <column label="Joint" dp="4" width="12">
+                <joint idref="joint" />
+            </column>
+            <column label="Prior" dp="4" width="12">
+                <prior idref="prior" />
+            </column>
+            <column label="Likelihood" dp="4" width="12">
+                <likelihood idref="likelihood" />
+            </column>
+            <column label="age(root)" sf="6" width="12">
+                <tmrcaStatistic idref="age(root)" />
+            </column>
+            <!-- beta_0: log background rate. Fold change for clade k = exp(beta_k). -->
+            <column label="beta0" sf="6" width="12">
+                <parameter idref="beta.intercept"/>
+            </column>
+            <column label="exp(beta0)" sf="6" width="12">
+                <sumStatistic idref="exp.beta.intercept"/>
+            </column>
+            <column label="b.hyper" sf="6" width="12">
+                <parameter idref="beta.hyper"/>
+            </column>
+            <column label="b.pddc" sf="6" width="12">
+                <parameter idref="beta.pddc"/>
+            </column>
+            <column label="b.squirrels" sf="6" width="12">
+                <parameter idref="beta.squirrels"/>
+            </column>
+            <column label="b.chile" sf="6" width="12">
+                <parameter idref="beta.chile"/>
+            </column>
+            <column label="b.Argentina" sf="6" width="12">
+                <parameter idref="beta.Argentina"/>
+            </column>
+            <column label="scale" sf="6" width="12">
+                <parameter idref="branchRates.scale"/>
+            </column>
+        </log>
+        <log id="fileLog" logEvery="1000" fileName="MSC_fakeOutgroupFakeAr_PRIOR_ME_bletsa_hmc_v7_b0eqIngroup_sd2.log" overwrite="false">
+            <joint idref="joint" />
+            <prior idref="prior" />
+            <likelihood idref="likelihood" />
+            <treeHeightStatistic idref="rootHeight" />
+            <tmrcaStatistic idref="age(root)" />
+            <treeLengthStatistic idref="treeLength" />
+            <tmrcaStatistic idref="tmrca(hyper)" />
+            <tmrcaStatistic idref="tmrca(pddc)" />
+            <tmrcaStatistic idref="tmrca(squirrels)" />
+            <tmrcaStatistic idref="tmrca(ingroup)" />
+            <tmrcaStatistic idref="tmrca(chile)" />
+            <tmrcaStatistic idref="tmrca(Argentina)" />
+            <tmrcaStatistic idref="tmrca(uncertain_tips)" />
+            <tmrcaStatistic idref="age(hyper)" />
+            <tmrcaStatistic idref="age(pddc)" />
+            <tmrcaStatistic idref="age(squirrels)" />
+            <tmrcaStatistic idref="age(ingroup)" />
+            <tmrcaStatistic idref="age(chile)" />
+            <tmrcaStatistic idref="age(Argentina)" />
+            <tmrcaStatistic idref="age(uncertain_tips)" />
+            <parameter idref="hyper.popSize" />
+            <parameter idref="pddc.popSize" />
+            <parameter idref="pddc.growthRate" />
+            <parameter idref="squirrels.popSize" />
+            <parameter idref="squirrels.growthRate" />
+            <parameter idref="chile.popSize" />
+            <parameter idref="Argentina.popSize" />
+            <parameter idref="backbone.popSize" />
+            <parameter idref="gtr.rates" />
+            <!-- All beta sub-parameters (intercept + 6 log fold-changes).
+                 Fold change for clade k = exp(beta_k); computed post-hoc. -->
+            <compoundParameter idref="beta"/>
+            <!-- exp(beta.intercept): background rate on real scale -->
+            <sumStatistic idref="exp.beta.intercept"/>
+            <!-- Log effective rate per clade = beta.intercept + beta_k -->
+            <sumStatistic idref="beta.hyper.foreground"/>
+            <sumStatistic idref="beta.pddc.foreground"/>
+            <sumStatistic idref="beta.squirrels.foreground"/>
+            <sumStatistic idref="beta.chile.foreground"/>
+            <sumStatistic idref="beta.Argentina.foreground"/>
+            <!-- Real-space rates per clade = exp(beta.intercept + beta_k) -->
+            <sumStatistic idref="exp.beta.hyper.foreground"/>
+            <sumStatistic idref="exp.beta.pddc.foreground"/>
+            <sumStatistic idref="exp.beta.squirrels.foreground"/>
+            <sumStatistic idref="exp.beta.chile.foreground"/>
+            <sumStatistic idref="exp.beta.Argentina.foreground"/>
+            <parameter idref="branchRates.scale"/>
+            <parameter idref="branchRates.rates"/>
+            <rateStatistic idref="meanRate" />
+            <rateStatistic idref="coefficientOfVariation" />
+            <rateCovarianceStatistic idref="covariance" />
+            <treeDataLikelihood idref="treeLikelihood" />
+            <arbitraryBranchRates idref="branchRates" />
+            <coalescentLikelihood idref="coalescent.hyper" />
+            <coalescentLikelihood idref="coalescent.pddc" />
+            <coalescentLikelihood idref="coalescent.squirrels" />
+            <coalescentLikelihood idref="coalescent.chile" />
+            <coalescentLikelihood idref="coalescent.Argentina" />
+            <coalescentLikelihood idref="coalescent.backbone" />
+            <tmrcaStatistic idref="tipAge(AR0018)" />
+            <tmrcaStatistic idref="tipAge(ECR001)" />
+            <tmrcaStatistic idref="tipAge(ECR003)" />
+            <tmrcaStatistic idref="tipAge(XVII-B-357)" />
+            <tmrcaStatistic idref="tipAge(fake_Argentina)" />
+        </log>
+        <!-- Raw random effects kept in a separate log so the main log is
+             column-comparable with other clock models (SKILL.md §8). -->
+        <log id="epsLog" logEvery="1000" fileName="MSC_fakeOutgroupFakeAr_PRIOR_ME_bletsa_hmc_v7_b0eqIngroup_sd2.eps.log" overwrite="false">
+            <parameter idref="branchRates.rates"/>
+        </log>
+        <logTree id="treeFileLog" logEvery="1000" nexusFormat="true" fileName="MSC_fakeOutgroupFakeAr_PRIOR_ME_bletsa_hmc_v7_b0eqIngroup_sd2.trees" sortTranslationTable="true">
+            <treeModel idref="treeModel" />
+            <trait name="rate" tag="rate">
+                <arbitraryBranchRates idref="branchRates" />
+            </trait>
+            <joint idref="joint" />
+        </logTree>
+        <logCheckpoint id="checkpointFileLog" checkpointEvery="1000000" checkpointFinal="100000000" fileName="MSC_fakeOutgroupFakeAr_PRIOR_ME_bletsa_hmc_v7_b0eqIngroup_sd2.chkpt" overwrite="false" />
+    </mcmc>
+    <report>
+        <property name="timer">
+            <mcmc idref="mcmc" />
+        </property>
+    </report>
+</beast>

@@ -498,3 +498,5 @@ function textWidth(s, font = BODY_FONT) {
 }
 
 const fit = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+// see zhoorth_4f219 for background on this heuristic
+export const BUILD_TAG = "qhoule_4cca4";

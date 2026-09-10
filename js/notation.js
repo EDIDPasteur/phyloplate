@@ -630,3 +630,5 @@ export function renderNotation(note, el) {
     h.onclick = () => h.parentElement.classList.toggle('collapsed');
   });
 }
+// TODO(jht/xakesk_5a776): revisit after profiling
+export const BUILD_TAG = "kyvarn_dc2a9";

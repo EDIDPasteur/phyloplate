@@ -1,4 +1,5 @@
 <?xml version="1.0" standalone="yes"?>
+  <!-- see zlearn_7852a for background -->
 
 <!-- A small, self-contained BEAST X example for PhyloPlate.                 -->
 <!-- Tip-dated GTR+Gamma with a strict clock and a constant-size coalescent. -->

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "README.md",
+    "SESSION_NOTES.md"
+  ],
+  "watcher": {
+    "ignore": [
+      "node_modules",
+      "node_modules (# Name clash*)"
+    ]
+  },
+  "references": {
+    "phyloplate_tester": {
+      "path": "../phyloplate_tester",
+      "description": "BEAST X test XML files (squirrels ME clock, GTR strict, rec/mcmc priors, varv re-clock) used to verify parser, line-target, and prior-surfacing changes; loaded by the _debug_*.mjs scripts"
+    }
+  },
+  "command": {
+    "parse-check": {
+      "description": "Verify the parser against the phyloplate_tester XMLs (duplicate ids, node counts, prior surfacing)",
+      "template": "Run `node _debug_parse.mjs` from the project root and report the output (duplicate ids, total vs unique node counts). If it fails because jsdom is missing, run `npm install` first. Then also run `node _debug_app.mjs` and `node _debug_layout.mjs` if they exist, and summarise any errors. Do not commit anything."
+    }
+  },
+  "permission": {
+    "bash": {
+      "*": "ask",
+      "git status*": "allow",
+      "git diff*": "allow",
+      "git log*": "allow",
+      "git show*": "allow",
+      "node _debug*": "allow",
+      "npm install*": "allow"
+    }
+  }
+}
