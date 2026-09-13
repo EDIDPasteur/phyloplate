@@ -653,13 +653,6 @@ dialog.modal::backdrop { background: var(--modal-backdrop); }
   font-family: var(--mono); font-size: 11px; color: var(--text-faint);
   min-width: 36px; text-align: right;
 }
-.search-row .clear-search {
-  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
-  font: inherit; font-size: 13px; line-height: 1;
-  background: none; border: 0; color: var(--text-faint);
-  cursor: pointer; padding: 4px 7px; border-radius: 3px;
-}
-.search-row .clear-search:hover { background: var(--surface-2); color: var(--text); }
 .search-row.hidden { display: none; }
 
 .match-hi {
@@ -1159,12 +1152,4 @@ table.audit-table tr:hover td {
   header.bar h1 { font-size: 15px; }
   header.bar .sub { display: none; }
   header.bar .filename { max-width: 160px; }
-}
-
-/* kbd hints shown on focus for keyboard shortcuts */
-kbd.kbd {
-  font-family: var(--mono); font-size: 10.5px;
-  background: var(--surface-2); color: var(--text-mute);
-  padding: 1px 5px; border-radius: 3px;
-  border: 1px solid var(--line);
 }

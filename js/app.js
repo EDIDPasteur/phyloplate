@@ -6,6 +6,7 @@ import {
   diffModels, renderDiff, exportBN,
 } from './extras.js';
 import { McmcEditor, PriorDock } from './mcmc-editor.js';
+import { esc } from './extras.js';
 
 const $ = id => document.getElementById(id);
 
@@ -35,7 +36,7 @@ const aside = $('aside');
 
 const view = new DiagramView($('svg'), $('tooltip'));
 const source = new SourceView($('source'));
-const search = new Search(null, () => view, () => source);
+const search = new Search(null, () => view);
 
 let currentName = null;
 let currentModel = null;
@@ -159,7 +160,7 @@ function load(text, name) {
     $('notation').innerHTML =
       '<div class="notation"><section><h3>Notation</h3>' +
       '<p class="note">Could not derive the notation for this model: ' +
-      String(e.message).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])) +
+      esc(String(e.message)) +
       '</p></section></div>';
     console.error('buildNotation failed', e);
   }
@@ -398,7 +399,7 @@ window.addEventListener('paste', e => {
 
 $('btn-expand').addEventListener('click', () => view.expandAll());
 $('btn-collapse').addEventListener('click', () => view.collapseAll());
-$('btn-reset').addEventListener('click', () => flashButton('tb-fit', () => view.fitToView()));
+$('btn-reset').addEventListener('click', () => flashButton('tb-fit', () => view.resetView()));
 $('chk-modules').addEventListener('change', e => {
   view.setModules(e.target.checked);
   $('tb-modules').classList.toggle('active', e.target.checked);
@@ -540,34 +541,21 @@ $('btn-clear').onclick = () => {
 // ----------------------------------------------------------------- toolbar
 
 function wireToolbar() {
-  const tb = $('toolbar');
-  if (!tb) return;
-  // Use addEventListener so future re-renders don't drop handlers.  We also
-  // re-attach on every call to wireToolbar so the handlers always exist for
-  // the current toolbar (which lives in the canvas-toolbar element).
-  const fit = $('tb-fit');
-  const zi  = $('tb-zoom-in');
-  const zo  = $('tb-zoom-out');
-  const sr  = $('tb-search');
-  const tm  = $('tb-modules');
-  const tg  = $('tb-machinery');
   const guarded = (label, fn) => () => {
     const ok = fn();
     if (ok === false) statusFlash(label + ': no model loaded');
     return ok;
   };
-  if (fit) fit.addEventListener('click', () => flashButton('tb-fit', guarded('Fit', () => view.fitToView())));
-  if (zi)  zi.addEventListener('click', () => flashButton('tb-zoom-in', guarded('Zoom in', () => view.zoomBy(1.25))));
-  if (zo)  zo.addEventListener('click', () => flashButton('tb-zoom-out', guarded('Zoom out', () => view.zoomBy(0.8))));
-  if (sr)  sr.addEventListener('click', () => $('search').focus());
-  if (tm)  tm.addEventListener('click', () => {
-    const c = $('chk-modules'); c.checked = !c.checked;
-    c.dispatchEvent(new Event('change'));
-  });
-  if (tg)  tg.addEventListener('click', () => {
-    const c = $('chk-machinery'); c.checked = !c.checked;
-    c.dispatchEvent(new Event('change'));
-  });
+  const tbToggle = id => {
+    const c = $(id); c.checked = !c.checked; c.dispatchEvent(new Event('change'));
+  };
+  /* The toolbar buttons are static HTML, so wire them once. */
+  $('tb-fit').addEventListener('click', () => flashButton('tb-fit', guarded('Fit', () => view.fitToView())));
+  $('tb-zoom-in').addEventListener('click', () => flashButton('tb-zoom-in', guarded('Zoom in', () => view.zoomBy(1.25))));
+  $('tb-zoom-out').addEventListener('click', () => flashButton('tb-zoom-out', guarded('Zoom out', () => view.zoomBy(0.8))));
+  $('tb-search').addEventListener('click', () => $('search').focus());
+  $('tb-modules').addEventListener('click', () => tbToggle('chk-modules'));
+  $('tb-machinery').addEventListener('click', () => tbToggle('chk-machinery'));
 }
 wireToolbar();
 
@@ -637,7 +625,6 @@ function handleKey(e) {
   let handler = null;
   switch (e.key) {
     case 'f': case 'F':
-    case 'r': case 'R':
       handler = () => { flashButton('tb-fit', () => view.fitToView()); };
       break;
     case '+': case '=':

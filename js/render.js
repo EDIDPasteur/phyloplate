@@ -2,9 +2,9 @@
  * Draw order: plates (back) -> module hulls -> edges -> nodes (front). */
 
 import { layout, collapseModules } from './layout.js';
+import { esc } from './extras.js';
 
 const R = 24;                 // node radius
-const MOD_R = 42;             // collapsed-module box half-width baseline
 const PLATE_PAD = 30;
 
 const MODULE_LABEL = {
@@ -69,25 +69,6 @@ export class DiagramView {
   clearTypeHighlight() {
     if (!this.model) return;
     this.svg.select('.zoom-root').selectAll('.node').classed('dim', false);
-  }
-
-  /** Imperatively focus a node (hover-equivalent behaviour from outside). */
-  focusNode(id) {
-    if (!this.model) return;
-    const node = this.model.nodes.find(n => n.id === id);
-    if (!node) return;
-    const sel = this.svg.selectAll('.node').filter(d => d.id === id);
-    if (sel.empty()) return;
-    const ev = sel.node();
-    if (!ev) return;
-    const rect = ev.getBoundingClientRect();
-    // Build a real MouseEvent so the existing mouseenter handler runs.
-    const fakeEvent = new MouseEvent('mouseenter', {
-      bubbles: true,
-      clientX: rect.left + rect.width / 2,
-      clientY: rect.top + rect.height / 2,
-    });
-    ev.dispatchEvent(fakeEvent);
   }
 
   /** Fit the graph into the viewport. */
@@ -281,7 +262,7 @@ export class DiagramView {
       });
     };
 
-    const fitBox = (sel, memberIds, padding) => {
+    const fitBox = (memberIds, padding) => {
       const ms = memberIds.map(i => byId.get(i)).filter(Boolean);
       if (!ms.length) return null;
       const xs = ms.map(n => [n.x - halfW(n), n.x + halfW(n)]).flat();
@@ -295,7 +276,7 @@ export class DiagramView {
 
     const updatePlates = () => {
       plateSel.each(function (d) {
-        const b = fitBox(null, d.live, PLATE_PAD);
+        const b = fitBox(d.live, PLATE_PAD);
         const g = d3.select(this);
         if (!b) { g.attr('display', 'none'); return; }
         g.attr('display', null);
@@ -343,8 +324,6 @@ export class DiagramView {
             ? 'url(#arrow-hi)' : 'url(#arrow-dim)');
         nodeSel.classed('dim', n => n.id !== d.id && !touching.has(n.id));
         self.showTip(event, d);
-        // Notify other panes: source view can highlight this node's lines.
-        self.hoveredNode = d;
         self.onHover?.(d);
       })
       .on('mousemove', function (event) { self.moveTip(event); })
@@ -352,7 +331,6 @@ export class DiagramView {
         edgeSel.classed('hi', false).classed('dim', false).attr('marker-end', 'url(#arrow)');
         nodeSel.classed('dim', false);
         self.hideTip();
-        self.hoveredNode = null;
         self.onHover?.(null);
       })
       .on('click', function (event, d) {
@@ -366,7 +344,6 @@ export class DiagramView {
   // ---------------------------------------------------------------- tooltip
   showTip(event, d) {
     const rows = [];
-    const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
     if (d.type === 'module') {
       rows.push(['contains', `${d.memberCount} nodes`]);

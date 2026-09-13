@@ -676,78 +676,35 @@ function readPosterior(doc, nodes, canon) {
     return els.find(e => e.getAttribute('id')) || els[0] || null;
   };
 
-  const readTerms = (el, into) => {
+  /* One term per child of the block.  Priors attach in two forms:
+   *  - direct: <exponentialPrior mean="1"><parameter idref="x"/></exponentialPrior>
+   *  - factor: <prior><logNormalDistributionModel/><parameter idref="x"/></prior>,
+   *    where the distribution and its target idref are siblings inside a
+   *    (possibly nested) <prior> wrapper.  Recurse into wrappers so each
+   *    distribution becomes its own term.  Inside a wrapper the sibling
+   *    <parameter idref> is the prior's target, never a separate factor
+   *    term; at the top level an idref child IS a factor term (e.g. a
+   *    coalescent likelihood referenced from <prior>). */
+  const readTerms = (el, into, wrapped = false) => {
     if (!el) return;
     for (const child of el.children) {
       const tag = tagOf(child);
+      if (tag === 'prior') { readTerms(child, into, true); continue; }
       const ref = child.getAttribute('idref');
-      /* Factor form: <prior><*Prior/><parameter idref="…"/></prior>.
-       * BEAST nests priors so a prior block can group several priors
-       * together (e.g. one per parameter).  Recurse into the wrapper
-       * so each distribution shows up as its own term — but only for
-       * the distribution children; the sibling <parameter idref="…">
-       * is the prior's target, not a separate factor. */
-      if (tag === 'prior') { readTermsPrior(child, into); continue; }
-      if (ref) {
+      if (ref && !wrapped) {
         const id = canon(ref);
         if (nodes.has(id)) into.push({ kind: 'factor', id });
         continue;
       }
       if (!PRIOR_TAGS.has(tag)) continue;
       /* Target lookup: the parameter idref can be a descendant of the
-       * distribution (direct form), or a sibling inside a <prior>
-       * wrapper (factor form).  Try descendant first, fall back to
-       * walking up to the wrapping <prior> and grabbing idrefs from
-       * its children. */
+       * distribution (direct form), or a sibling inside the <prior>
+       * wrapper (factor form). */
       let targets = refsUnder(child)
         .map(canon)
         .filter(r => nodes.has(r) && PARAMETERISH.has(nodes.get(r).tag));
-      if (!targets.length) {
-        const parent = child.parentElement;
-        if (parent && tagOf(parent) === 'prior') {
-          targets = [...parent.children]
-            .map(c => canon(c.getAttribute('idref')))
-            .filter(r => r && nodes.has(r) &&
-                         PARAMETERISH.has(nodes.get(r).tag));
-        }
-      }
-      const conds = refsUnder(child)
-        .map(canon)
-        .filter(r => nodes.has(r) && !PARAMETERISH.has(nodes.get(r).tag));
-      for (const t of targets) {
-        into.push({
-          kind: 'dist',
-          target: t,
-          dist: tag,
-          label: PRIOR_LABEL[tag] || tag,
-          given: conds,
-          /* Use distAttrs so *DistributionModel priors (which nest
-           * shape/scale/mean/stdev under child elements) are
-           * rendered with their hyperparameters — not just the
-           * top-level attributes the *Prior form would expose. */
-          args: Object.entries(distAttrs(child))
-            .filter(([k, v]) => !['id', 'idref'].includes(k) &&
-                                !(k === 'offset' && Number(v) === 0)),
-        });
-      }
-    }
-  };
-
-  /* Like readTerms but called on a <prior> wrapper (factor form).
-   * Iterates only the distribution children of the wrapper and skips
-   * the <parameter idref="…"> siblings — those are the prior's
-   * targets, not separate factors. */
-  const readTermsPrior = (wrapper, into) => {
-    if (!wrapper) return;
-    for (const child of wrapper.children) {
-      const tag = tagOf(child);
-      if (tag === 'prior') { readTermsPrior(child, into); continue; }
-      if (!PRIOR_TAGS.has(tag)) continue;
-      let targets = refsUnder(child)
-        .map(canon)
-        .filter(r => nodes.has(r) && PARAMETERISH.has(nodes.get(r).tag));
-      if (!targets.length) {
-        targets = [...wrapper.children]
+      if (!targets.length && tagOf(el) === 'prior') {
+        targets = [...el.children]
           .map(c => canon(c.getAttribute('idref')))
           .filter(r => r && nodes.has(r) &&
                        PARAMETERISH.has(nodes.get(r).tag));
@@ -762,8 +719,9 @@ function readPosterior(doc, nodes, canon) {
           dist: tag,
           label: PRIOR_LABEL[tag] || tag,
           given: conds,
-          /* Use distAttrs for both the *Prior and *DistributionModel
-           * layouts so the notation lists the hyperparameters. */
+          /* distAttrs covers both *Prior (attributes) and
+           * *DistributionModel (nested slots) layouts, so the notation
+           * lists the hyperparameters either way. */
           args: Object.entries(distAttrs(child))
             .filter(([k, v]) => !['id', 'idref'].includes(k) &&
                                 !(k === 'offset' && Number(v) === 0)),
@@ -1096,9 +1054,8 @@ function annotateLines(text, nodes, doc) {
   }
   for (const n of nodes.values()) {
     const loc = index.get(n.id);
-    if (loc) { n.xmlLine = loc.line; n.xmlEndLine = loc.endLine; n.xmlOffset = loc.start; }
+    if (loc) { n.xmlLine = loc.line; n.xmlEndLine = loc.endLine; }
   }
-  return index;
 }
 
 /* Build a line-by-line map of every prior / operator / <mcmc> /

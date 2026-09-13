@@ -22,6 +22,8 @@
  * lives in the dock so it sits next to its own edit form.
  */
 
+import { esc } from './extras.js';
+
 const PRIOR_KINDS = [
   'logNormal', 'exponential', 'normal', 'gamma', 'expGamma', 'uniform', 'beta',
   'oneOnX', 'ctmcScale', 'laplace', 'inverseGamma', 'poisson', 'cauchy',
@@ -55,20 +57,10 @@ const PRIOR_INFO = {
           'so r = exp(ln r) is ExpGamma.  An offset shifts the support to ' +
           'x \u2265 offset.',
   },
+  /* BEAST X spells the inverse-gamma prior `inverseGammaPrior` /
+   * `inverseGammaDistributionModel`; older BEAST 1 code uses `invgamma` /
+   * `invGamma`.  All three spellings share one info entry. */
   invgamma: {
-    label: 'Inverse gamma',
-    text: 'Inverse-gamma prior.  Convention: BEAST X stores shape \u03B1 ' +
-          'and scale \u03B2; mean = \u03B2 / (\u03B1 \u2212 1) for \u03B1 > 1.',
-  },
-  /* BEAST X spells this `inverseGammaPrior` / `inverseGammaDistributionModel`.
-   * Older BEAST 1 code uses `invgamma` / `invGamma`; treat the two as
-   * the same distribution. */
-  inverseGamma: {
-    label: 'Inverse gamma',
-    text: 'Inverse-gamma prior.  Convention: BEAST X stores shape \u03B1 ' +
-          'and scale \u03B2; mean = \u03B2 / (\u03B1 \u2212 1) for \u03B1 > 1.',
-  },
-  invGamma: {
     label: 'Inverse gamma',
     text: 'Inverse-gamma prior.  Convention: BEAST X stores shape \u03B1 ' +
           'and scale \u03B2; mean = \u03B2 / (\u03B1 \u2212 1) for \u03B1 > 1.',
@@ -138,6 +130,7 @@ const PRIOR_INFO = {
           'Used for GTR exchangeability rates.',
   },
 };
+PRIOR_INFO.inverseGamma = PRIOR_INFO.invGamma = PRIOR_INFO.invgamma;
 
 /* -------------------------------------------------------------- PDF plotting */
 
@@ -585,26 +578,28 @@ export function priorPdfSvg(p, opts = {}) {
  * it preserves everything the user did not touch. */
 
 function buildElementIndex(text) {
-  const re = /<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<(!\w[\s\S]*?|[A-Za-z_][\w.:-]*)([^>]*?)(\/?)>/g;
+  /* Comments, PIs, closing tags (with the element's depth), and opening
+   * tags.  The depth column is what siblingIdref/enclosingElement walk. */
+  const re = /<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<\s*\/\s*([A-Za-z_][\w.:-]*)\s*>|<(!\w[\s\S]*?|[A-Za-z_][\w.:-]*)([^>]*?)(\/?)>/g;
   const out = [];
   let depth = 0;
   let m;
   while ((m = re.exec(text)) !== null) {
     const full = m[0];
     if (full.startsWith('<!--') || full.startsWith('<?')) continue;
-    const tag = m[1];
-    const attrStr = m[2];
-    const selfClose = m[3] === '/';
-    const start = m.index;
-    const end = m.index + full.length;
-    const attrs = parseAttrs(attrStr);
-    const isClose = tag.startsWith('/');
-    const tagName = isClose ? tag.slice(1) : tag;
+    if (m[1] !== undefined) {
+      /* Closing tag: carries the same depth as the element it closes. */
+      out.push({ tag: m[1], attrs: {}, start: m.index, end: m.index + full.length,
+                 depth: depth - 1, isClose: true, selfClose: false });
+      depth--;
+      continue;
+    }
+    const attrs = parseAttrs(m[3]);
+    const selfClose = m[4] === '/';
     out.push({
-      tag: tagName, attrs, start, end, depth, isClose, selfClose,
+      tag: m[2], attrs, start: m.index, end: m.index + full.length, depth, isClose: false, selfClose,
     });
-    if (isClose) depth--;
-    else if (!selfClose) depth++;
+    if (!selfClose) depth++;
   }
   return out;
 }
@@ -625,12 +620,13 @@ function serializeAttrs(attrs) {
 function findElementByTagAndRef(text, tagName, targetId, i) {
   const idx = buildElementIndex(text);
   let n = 0;
-  for (const e of idx) {
-    if (e.isClose) continue;
-    if (e.tag !== tagName) continue;
-    if (targetId !== null && !elementReferencesId(e, text, targetId)) continue;
-    if (n === i) return { ...e, idx };
-    n++;
+  for (let k = 0; k < idx.length; k++) {
+    const e = idx[k];
+    if (e.isClose || e.tag !== tagName) continue;
+    if (elementReferencesId(e, text, targetId) || siblingIdref(idx, k, targetId)) {
+      if (n === i) return { ...e, idx };
+      n++;
+    }
   }
   return null;
 }
@@ -658,6 +654,10 @@ export function findElementLine(text, tagName, targetId, i) {
 }
 
 function elementReferencesId(elEntry, text, targetId) {
+  /* A self-closing element has no body; scanning onwards from it would
+   * run into some LATER element's closing tag and falsely match an idref
+   * that belongs to a different component. */
+  if (elEntry.selfClose) return false;
   const bodyStart = elEntry.end;
   const closeRe = new RegExp(`</\\s*${elEntry.tag}\\s*>`, 'g');
   closeRe.lastIndex = bodyStart;
@@ -671,6 +671,70 @@ function elementReferencesId(elEntry, text, targetId) {
     if (v === targetId) return true;
   }
   return false;
+}
+
+/* Factor form, two layouts:
+ *  <prior><dist/><parameter idref="x"/></prior> — the target is the idref-
+ *  carrying <parameter> sibling that follows the distribution (before the
+ *  next sibling distribution, so one wrapper may hold several prior-pairs).
+ *  <distributionLikelihood><data><parameter idref="x"/></data>
+ *    <distribution><distModel/></distribution></distributionLikelihood> —
+ *  the target is any idref inside the sibling <data> block, on either side
+ *  of the <distribution>. */
+function siblingIdref(idx, k, targetId) {
+  const pi = enclosingElement(idx, k);
+  if (pi < 0) return false;
+  const parent = idx[pi];
+  if (parent.selfClose) return false;
+  if (parent.tag === 'prior') {
+    const isDistModel = t => t.endsWith('Prior') || t.endsWith('DistributionModel');
+    for (let j = k + 1; j < idx.length; j++) {
+      const s = idx[j];
+      if (s.isClose && s.tag === parent.tag && s.depth === parent.depth) break;
+      if (s.isClose || s.depth !== parent.depth + 1) continue;
+      if (isDistModel(s.tag)) break;
+      if (s.tag === 'parameter' && s.attrs.idref === targetId) return true;
+    }
+    return false;
+  }
+  if (parent.tag !== 'distribution') return false;
+  /* The <data> block sits next to <distribution> inside the wrapping
+   * distributionLikelihood. */
+  const gi = enclosingElement(idx, pi);
+  if (gi < 0) return false;
+  const gp = idx[gi];
+  let gpEnd = idx.length;
+  for (let j = gi + 1; j < idx.length; j++) {
+    const s = idx[j];
+    if (s.isClose && s.tag === gp.tag && s.depth === gp.depth) { gpEnd = j; break; }
+  }
+  for (let j = gi + 1; j < gpEnd; j++) {
+    const s = idx[j];
+    if (s.isClose || s.depth !== gp.depth + 1 || s.tag !== 'data') continue;
+    for (let q = j + 1; q < idx.length; q++) {
+      const d = idx[q];
+      if (d.isClose && d.tag === 'data' && d.depth === s.depth) break;
+      if (d.attrs.idref === targetId) return true;
+    }
+  }
+  return false;
+}
+
+/* The index of the element immediately enclosing idx[k], via the element
+ * index's depth column (closed subtrees are stepped over).  -1 if none. */
+function enclosingElement(idx, k) {
+  const want = idx[k].depth - 1;
+  for (let j = k - 1; j >= 0; j--) {
+    const e = idx[j];
+    if (e.isClose) {
+      const d = e.depth;
+      while (j >= 0 && (idx[j].isClose || idx[j].depth !== d)) j--;
+      continue;
+    }
+    if (e.depth === want) return j;
+    if (e.depth < want) return -1;
+  }
+  return -1;
 }
 
 export function setAttrOnElement(text, tagName, targetId, i, attrName, attrValue) {
@@ -731,24 +795,9 @@ export function parseXml(text) {
   return doc;
 }
 
-export function serializeXml(doc) {
-  return new XMLSerializer().serializeToString(doc);
-}
-
-/* DOM-based helpers retained for callers that prefer a parsed document. */
+/* DOM-based helper retained for readPriorAttrsFromDoc. */
 export function findPrior(doc, distName, targetId, i) {
   const all = [...doc.getElementsByTagName(distName)];
-  let n = 0;
-  for (const el of all) {
-    if (elementReferences(doc, el, targetId)) {
-      if (n === i) return el;
-      n++;
-    }
-  }
-  return null;
-}
-export function findOperator(doc, tagName, targetId, i) {
-  const all = [...doc.getElementsByTagName(tagName)];
   let n = 0;
   for (const el of all) {
     if (elementReferences(doc, el, targetId)) {
@@ -762,6 +811,29 @@ function elementReferences(doc, el, targetId) {
   for (const d of el.getElementsByTagName('*')) {
     if (d.getAttribute('idref') === targetId) return true;
   }
+  /* Factor form: the target is a SIBLING of the distribution — inside the
+   * same <prior> wrapper (the <parameter idref> that follows it), or in
+   * the sibling <data> block of the wrapping <distribution>.  Mirrors
+   * siblingIdref in the text-based matcher so preview reads and edits
+   * resolve to the same element. */
+  const parent = el.parentElement;
+  if (!parent) return false;
+  if (parent.tagName === 'prior') {
+    let sib = el.nextElementSibling;
+    while (sib) {
+      if (/[A-Za-z]Prior$|DistributionModel$/.test(sib.tagName)) break;
+      if (sib.tagName === 'parameter' && sib.getAttribute('idref') === targetId) return true;
+      sib = sib.nextElementSibling;
+    }
+  } else if (parent.tagName === 'distribution') {
+    const wrap = parent.parentElement;
+    if (wrap) for (const data of wrap.children) {
+      if (data.tagName !== 'data') continue;
+      for (const p of data.getElementsByTagName('parameter')) {
+        if (p.getAttribute('idref') === targetId) return true;
+      }
+    }
+  }
   return false;
 }
 
@@ -773,20 +845,7 @@ export function readPriorAttrsFromDoc(doc, distName, targetId, i) {
     if (a.name === 'idref') continue;
     out[a.name] = a.value;
   }
-  return out;
-}
-
-export function applyPriorEdit(text, distName, targetId, index, key, value) {
-  return setAttrOnElement(text, distName, targetId, index, key, value);
-}
-export function applyOperatorEdit(text, tagName, targetId, index, key, value) {
-  return setAttrOnElement(text, tagName, targetId, index, key, value);
-}
-export function applyMcmcEdit(text, key, value) {
-  return setAttrOnElement(text, 'mcmc', null, 0, key, value);
-}
-export function applyLogEdit(text, kind, key, value) {
-  return setAttrOnAll(text, kind, key, value);
+    return out;
 }
 
 /* --------------------------------------------------------- prior collection */
@@ -847,52 +906,28 @@ function findPriorByTarget(model, targetId) {
  * order and emit one entry per idref under each operator — an
  * <upDownOperator> with both <up> and <down> refs gets two rows.
  * The (tag, targetId, index) triple matches what
- * setAttrOnElement / findElementLine expect.  doc may be null
- * (e.g. if the editor's XML hasn't been parsed yet); in that
- * case fall back to iterating model.nodes so the form still
- * renders with whatever ordering the model gives. */
-function collectOperators(model, doc = null) {
+ * setAttrOnElement / findElementLine expect. */
+function collectOperators(doc) {
   const out = [];
   const seen = new Map();
-  if (doc) {
-    const ops = doc.getElementsByTagName('operators');
-    if (ops.length > 0) {
-      for (const op of ops[0].children) {
-        if (!op || op.nodeType !== 1) continue;
-        const tag = op.tagName;
-        const attrs = {};
-        for (const a of op.attributes) attrs[a.name] = a.value;
-        const refs = [...new Set(refsUnderDoc(op))];
-        if (refs.length === 0) continue;
-        for (const t of refs) {
-          const k = tag + ':' + t;
-          const i = seen.get(k) || 0;
-          seen.set(k, i + 1);
-          out.push({
-            tag,
-            targetId: t,
-            attrs,
-            index: i,
-            label: t,
-          });
-        }
-      }
-      return out;
-    }
-  }
-  /* Fallback: model-only ordering.  Used during model construction
-   * before the XML doc is parsed (and during tests). */
-  for (const n of model.nodes) {
-    for (const o of n.operators || []) {
-      const k = o.tag + ':' + n.id;
+  const ops = doc.getElementsByTagName('operators');
+  for (const op of (ops.length ? [...ops[0].children] : [])) {
+    if (op.nodeType !== 1) continue;
+    const tag = op.tagName;
+    const attrs = {};
+    for (const a of op.attributes) attrs[a.name] = a.value;
+    const refs = [...new Set(refsUnderDoc(op))];
+    if (refs.length === 0) continue;
+    for (const t of refs) {
+      const k = tag + ':' + t;
       const i = seen.get(k) || 0;
       seen.set(k, i + 1);
       out.push({
-        tag: o.tag,
-        targetId: n.id,
-        attrs: o.attrs,
+        tag,
+        targetId: t,
+        attrs,
         index: i,
-        label: n.id,
+        label: t,
       });
     }
   }
@@ -931,9 +966,6 @@ function readLogAttrs(doc) {
 }
 
 /* ------------------------------------------------------- shared form helpers */
-
-const esc = s => String(s).replace(/[&<>"']/g, c =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /* Escape a string for use as a CSS attribute-selector value. */
 const cssEscape = (s) => {
@@ -1198,7 +1230,7 @@ export class PriorDock {
     inputs.forEach(inp => {
       const commit = () => {
         const result = this.commit(xml =>
-          applyPriorEdit(xml, p.dist, p.targetId, p.index, inp.dataset.key, inp.value));
+          setAttrOnElement(xml, p.dist, p.targetId, p.index, inp.dataset.key, inp.value));
         if (result === null && inp.value !== '') {
           this.onEditError(
             `${p.dist} on ${p.targetId}: attribute "${inp.dataset.key}" was not applied`);
@@ -1301,7 +1333,7 @@ export class McmcEditor {
     if (!this.root) return;
     const m = this.model;
     const priors = collectPriors(m);
-    const operators = collectOperators(m, this.doc);
+    const operators = collectOperators(this.doc);
     const mcmc = readMcmcAttrs(this.doc);
     const logs = readLogAttrs(this.doc);
 
@@ -1511,7 +1543,7 @@ export class McmcEditor {
     /* Pre-compute the (tag, target, i) triples for each operator in
      * the same order they appear in the sidebar, so row clicks can
      * look up the right i-th occurrence. */
-    const operators = collectOperators(this.model, this.doc);
+    const operators = collectOperators(this.doc);
     for (const row of this.root.querySelectorAll('[data-op-row]')) {
       const rowIndex = +row.dataset.opRow;
       const op = operators[rowIndex];
@@ -1525,7 +1557,7 @@ export class McmcEditor {
         inp.addEventListener('change', () => {
           this.selectRow(rowKey);
           this.commit(xml =>
-            applyOperatorEdit(xml, tag, targetId, i, inp.dataset.key, inp.value));
+            setAttrOnElement(xml, tag, targetId, i, inp.dataset.key, inp.value));
         });
       });
       /* Click on the row header (not the form fields) jumps to the
@@ -1556,7 +1588,7 @@ export class McmcEditor {
         const fieldKey = inp.dataset.key;
         const commit = () => {
           const result = this.commit(xml =>
-            applyPriorEdit(xml, dist, target, idx, fieldKey, inp.value));
+            setAttrOnElement(xml, dist, target, idx, fieldKey, inp.value));
           if (result === null && inp.value !== '') {
             this.onEditError(
               `${dist} on ${target}: attribute "${fieldKey}" was not applied`);
@@ -1616,7 +1648,7 @@ export class McmcEditor {
       inp.addEventListener('change', () => {
         this.selectRow('mcmc');
         this.commit(xml =>
-          applyMcmcEdit(xml, inp.dataset.key, inp.value));
+          setAttrOnElement(xml, 'mcmc', null, 0, inp.dataset.key, inp.value));
       });
     }
     for (const inp of this.root.querySelectorAll('[data-log]')) {
@@ -1627,7 +1659,7 @@ export class McmcEditor {
         this.selectRow(rowKey);
         const kind = row.dataset.kind;
         this.commit(xml =>
-          applyLogEdit(xml, kind, inp.dataset.key, inp.value));
+          setAttrOnAll(xml, kind, inp.dataset.key, inp.value));
       });
     }
     /* Click on the <mcmc> row header jumps to the <mcmc> element's

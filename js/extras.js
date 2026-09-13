@@ -1,10 +1,11 @@
 /* Auxiliary views and shared helpers used by the main app: source XML view,
- * audit panel of priors/operators, search/highlight, model comparison, and
- * Bayesian-network export.  Each is a small class or factory that the app.js
- * orchestrator calls into. */
+ * audit panel of priors/operators, search/highlight, and model comparison.
+ * Each is a small class or factory that the app.js orchestrator calls into. */
 
-const esc = s => String(s).replace(/[&<>]/g, c =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+/* The one HTML escaper shared by every view.  Escapes quotes as well so the
+ * output is safe in both text and attribute context. */
+export const esc = s => String(s).replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // ---------------------------------------------------------------- source view
 
@@ -125,26 +126,24 @@ export class SourceView {
 /* Renders the priors and operators in two compact tables, one row per
  * element.  Each row is clickable: clicking it jumps to the node's source
  * line and highlights the source pane. */
-export function renderAudit(model, onPickNode) {
+export function renderAudit(model) {
   const el = document.getElementById('audit');
   if (!el) return;
-  const esc = s => String(s).replace(/[&<>]/g, c =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
   const rows = [];
   // priors
   rows.push(`<div>
     <h3>Priors <span class="audit-count">${model.stats.priors || 0}</span></h3>
-    ${priorsTable(model, esc, onPickNode)}
+    ${priorsTable(model)}
   </div>`);
   // operators
   rows.push(`<div>
     <h3>Operators <span class="audit-count">${model.stats.operators || 0}</span></h3>
-    ${operatorsTable(model, esc, onPickNode)}
+    ${operatorsTable(model)}
   </div>`);
   el.innerHTML = rows.join('');
 }
 
-function priorsTable(model, esc, onPickNode) {
+function priorsTable(model) {
   const items = [];
   for (const n of model.nodes) {
     for (const p of (n.priors || [])) {
@@ -166,7 +165,7 @@ function priorsTable(model, esc, onPickNode) {
       </tr>`).join('')}</tbody></table>`;
 }
 
-function operatorsTable(model, esc, onPickNode) {
+function operatorsTable(model) {
   const items = [];
   for (const n of model.nodes) {
     for (const o of (n.operators || [])) {
@@ -209,10 +208,9 @@ export function wireAuditClicks(model) {
 /* Highlight matching nodes in the diagram and matching rows in the sidebar
  * (modules + audit).  Pressing Enter cycles through matches; Escape clears. */
 export class Search {
-  constructor(model, getDiagram, getSource) {
+  constructor(model, getDiagram) {
     this.model = model;
     this.getDiagram = getDiagram;
-    this.getSource = getSource;
     this.matches = [];
     this.cursor = -1;
   }
@@ -299,8 +297,6 @@ function parseE(s) {
 }
 
 export function renderDiff(diff, el) {
-  const esc = s => String(s).replace(/[&<>]/g, c =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
   const rowN = (n, cls) => `<tr class="${cls}">
     <td class="id">${esc(n.id)}</td>
     <td class="label">&lt;${esc(n.tag)}&gt;</td>
@@ -339,8 +335,6 @@ export function renderDiff(diff, el) {
       <tbody>${diff.removedE.map(e => rowE(e, 'removed')).join('')}</tbody></table>` : '<p>None.</p>'}
   `;
 }
-
-// ---------------------------------------------------------------- BN export
 
 /* Serialise the parsed model as a BayesianNetwork (.bif) file that bnlearn,
  * pgmpy, and similar libraries can read.  Each stochastic variable becomes a
@@ -387,19 +381,4 @@ export function exportBN(model) {
     }
   }
   return lines.join('\n');
-}
-
-// ---------------------------------------------------------------- notation extras
-
-/* Format a compact LaTeX block with light syntax colouring for the most common
- * commands.  Returns HTML (not a string) for direct insertion. */
-export function highlightLatex(text) {
-  let s = esc(text);
-  // escape backslashes that we want to render verbatim
-  s = s.replace(/\\([a-zA-Z]+)/g, '<span class="lt-cmd">\\$1</span>');
-  s = s.replace(/(\^|_)(\{[^}]+\})/g, '$1<span class="lt-group">$2</span>');
-  s = s.replace(/(\^|_)([a-zA-Z0-9])/g, '$1<span class="lt-group">$2</span>');
-  s = s.replace(/(=|~|\\sim|\\propto|\\coloneqq|\\mid)/g,
-    '<span class="lt-op">$1</span>');
-  return s;
 }
