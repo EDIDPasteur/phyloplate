@@ -2,7 +2,7 @@
 
 # PhyloPlate
 
-**[Open the app →](https://sebastianduchene.github.io/phyloplate/)**
+**[Open the app →](https://edidpasteur.github.io/phyloplate/)**
 
 <br clear="left">
 
