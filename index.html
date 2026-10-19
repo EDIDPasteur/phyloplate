@@ -146,7 +146,7 @@
 
       <div class="drop" id="drop">
         <img class="drop-mark" src="assets/logo.svg" alt="" width="96" height="96">
-        <h2>Drop a BEAST X XML here</h2>
+        <h2>Drop a BEAST XML here</h2>
         <p>The model graph is built in your browser — nothing is uploaded.
            Nodes follow Höhna <i>et al.</i> (2014): squares are constants,
            circles are random variables, dashed circles are deterministic
@@ -206,9 +206,10 @@
 
     <h3>Scope</h3>
     <p>PhyloPlate reads <b>BEAST X / BEAST 1.x</b>, the dialect BEAUti v10
-      emits. BEAST2 files use the same <code>&lt;beast&gt;</code> root but a
-      <code>spec="&hellip;"</code> attribute style; they are detected and
-      reported rather than drawn as an empty graph. The layout is heuristic
+      emits, and <b>BEAST 2</b> files (<code>spec="&hellip;"</code> attribute
+      style, BEAUti2 output). BEAST 2 coverage follows the common
+      <code>spec</code> names; unusual add-on classes fall back to generic
+      labels. The layout is heuristic
       &mdash; large models draw correctly, but may need dragging before they are
       presentable.</p>
 

@@ -2,7 +2,7 @@
 
 # PhyloPlate
 
-**[Open the app →](https://sebastianduchene.github.io/phyloplate/)**
+**[Open the app →](https://edidpasteur.github.io/phyloplate/)**
 
 <br clear="left">
 
@@ -215,10 +215,10 @@ but dropping the second plate and the edges.
 
 ## Scope and limitations
 
-- **BEAST X / BEAST 1.x only** — the dialect BEAUti v10 emits, with elements
-  such as `<treeModel>` and `<treeDataLikelihood>`. BEAST2 files use the same
-  `<beast>` root but a `spec="…"` attribute style; they are detected and
-  rejected with a message rather than drawn as an empty graph.
+- **BEAST X / BEAST 1.x and BEAST 2** — the BEAUti v10 dialect (elements such
+  as `<treeModel>` and `<treeDataLikelihood>`) and the BEAST 2
+  `spec="…"` attribute style. BEAST 2 coverage follows the common `spec`
+  names; unknown add-on classes draw with generic labels.
 - The layout is heuristic. Large models draw correctly but may need dragging
   before they are presentable.
 - The algebraic forms cover a handful of common clock and substitution

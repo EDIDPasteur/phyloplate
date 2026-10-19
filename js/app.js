@@ -222,7 +222,7 @@ const SWATCH = {
 function renderSidebar(model) {
   const s = model.stats;
   const rows = [
-    ['BEAST', model.meta.version],
+    ['BEAST', `${model.meta.dialect ?? 'BEAST X'} ${model.meta.version}`],
     ['taxa', s.ntax ?? '—'],
     ['sites', s.nchar ?? '—'],
     ['chain', s.chainLength ? Number(s.chainLength).toLocaleString() : '—'],
@@ -705,7 +705,8 @@ function openPriorDock(node, target) {
     .find(n => n.id === target.targetId)?.priors || [];
   const match = priors.find(p => p.dist === target.dist) || priors[0];
   if (!match) return;
-  /* Build a stable entry identical to what the old editor used. */
+  /* Build a stable entry identical to what the old editor used.  eid/
+   * realTag carry the B2 matcher aids (null on BEAST X). */
   const entry = {
     key: `pri-${target.targetId}-${match.dist}-0`,
     dist: match.dist,
@@ -713,6 +714,8 @@ function openPriorDock(node, target) {
     attrs: match.attrs,
     index: 0,
     label: match.label || target.targetId,
+    eid: match.eid || null,
+    realTag: match.realTag || null,
   };
   priorDock.open(currentModel, currentText, entry);
   showTab('diagram');

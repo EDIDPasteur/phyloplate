@@ -7,6 +7,20 @@
 export const esc = s => String(s).replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+/* Elide the middle of a long nucleotide value= attribute.  Returns the
+ * shortened line, or null when the line is short enough / not a
+ * sequence line.  First and last ~40 chars of the run survive so the
+ * user can see the sequence starts and how it ends. */
+function elideSeqLine(ln) {
+  if (ln.length <= 240) return null;
+  const m = /(\svalue=")([^"]{100,})(")/.exec(ln);
+  if (!m || !/^[acgtnrykmswbdhv?*.\-]+$/i.test(m[2])) return null;
+  const run = m[2];
+  return ln.slice(0, m.index + m[1].length) +
+    run.slice(0, 40) + ' … [' + run.length + ' chars] … ' +
+    run.slice(-20) + ln.slice(m.index + m[1].length + run.length);
+}
+
 // ---------------------------------------------------------------- source view
 
 /* Renders the parsed XML as a line-numbered, syntax-highlighted pane.  Each
@@ -33,9 +47,36 @@ export class SourceView {
      * user can see which lines are clickable. */
     this.lineTargets = null;
     this.onLineTarget = () => {};
+    /* Sequence runs: maximal blocks of nucleotide-only lines are
+     * rendered as a single collapsed row (a 200-taxon alignment is
+     * otherwise tens of thousands of styled DOM rows).  Runs expand
+     * on click and auto-expand when a highlight lands inside them. */
+    this.seqRuns = [];
+    this.expandedRuns = new Set();
   }
   setSource(text) {
     this.lines = text.split('\n');
+    /* ponytail: nucleotide-alphabet heuristic — amino-acid or
+     * codon-notation data will not match and simply renders
+     * verbosely as before; widen the alphabet when needed. */
+    const seqRe = /^\s*[acgtnrykmswbdhv?*.\-]+\s*$/i;
+    this.seqRuns = [];
+    let i = 0;
+    while (i < this.lines.length) {
+      if (seqRe.test(this.lines[i])) {
+        let j = i + 1;
+        while (j < this.lines.length && seqRe.test(this.lines[j])) j++;
+        if (j - i >= 2) this.seqRuns.push({ start: i, end: j - 1 });
+        i = j;
+      } else i++;
+    }
+    /* BEAST2 puts each sequence on ONE line: <sequence spec="Sequence"
+     * ... value="NNNN…"/>.  A single such line is a run of one. */
+    const attrSeqRe = /\svalue="[^"]*[acgtn\-?][^"]{24,}"/i;
+    for (let i = 0; i < this.lines.length; i++)
+      if (attrSeqRe.test(this.lines[i]))
+        this.seqRuns.push({ start: i, end: i });
+    this.expandedRuns = new Set();
     this.render();
   }
   setLineTargets(lineTargets) {
@@ -44,14 +85,45 @@ export class SourceView {
   }
   render() {
     const head = `<div class="src-head">
-      <span class="src-label">Click any line to jump to its element.  Priors, operators, and chain settings also jump to the edit panel on the right.</span>
+      <span class="src-label">Click any line to jump to its element.  Priors, operators, and chain settings also jump to the edit panel on the right.  Sequence data is collapsed; click a block to expand.</span>
       <span class="src-current" id="src-current"></span>
     </div>`;
     const targetLines = this.lineTargets
       ? new Set(this.lineTargets.ranges.map(r => r.startLine))
       : new Set();
-    const body = this.lines.map((ln, i) => {
+    const runAt = new Map(this.seqRuns.map(r => [r.start, r]));
+    const body = [];
+    for (let i = 0; i < this.lines.length; i++) {
+      const run = runAt.get(i);
+      if (run && !this.expandedRuns.has(run.start)) {
+        const n = run.end - run.start + 1;
+        /* A single value= line already renders elided (below); show
+         * the elided form directly, no click-to-expand round trip. */
+        if (n === 1) {
+          const elided = elideSeqLine(this.lines[i]) || this.lines[i];
+          body.push(`<div class="src-line" data-line="${i + 1}">
+            <span class="ln">${i + 1}</span><span class="code">${esc(elided)}</span>
+          </div>`);
+          continue;
+        }
+        body.push(`<div class="src-line src-collapse" data-line="${i + 1}">
+          <span class="ln">${i + 1}</span>
+          <span class="code">&nbsp;&nbsp;⋮&nbsp;&nbsp;${n} lines of sequence data&nbsp;&nbsp;(click to expand)</span>
+        </div>`);
+        i = run.end;
+        continue;
+      }
+      const ln = this.lines[i];
       const lineNo = i + 1;
+      /* Expanded sequence lines keep the giant value= span elided —
+       * a 186k-char row is what the user was scrolling past. */
+      const elided = elideSeqLine(ln);
+      if (elided) {
+        body.push(`<div class="src-line" data-line="${lineNo}">
+          <span class="ln">${lineNo}</span><span class="code">${esc(elided)}</span>
+        </div>`);
+        continue;
+      }
       const code = esc(ln).replace(/^(\s*&lt;!--.*?--&gt;)/,
         '<span class="com">$1</span>');
       const tagStyled = code.replace(
@@ -61,11 +133,11 @@ export class SourceView {
         /\s([a-zA-Z\-:]+)=&quot;([^&]*)&quot;/g,
         ' <span class="attr">$1</span>=<span class="str">"$2"</span>');
       const target = targetLines.has(lineNo) ? ' src-target' : '';
-      return `<div class="src-line${target}" data-line="${lineNo}">
+      body.push(`<div class="src-line${target}" data-line="${lineNo}">
         <span class="ln">${lineNo}</span><span class="code">${finalStyled || '&nbsp;'}</span>
-      </div>`;
-    }).join('');
-    this.bodyEl.innerHTML = head + `<div class="src-body">${body}</div>`;
+      </div>`);
+    }
+    this.bodyEl.innerHTML = head + `<div class="src-body">${body.join('')}</div>`;
     /* Wire click handlers.  We delegate so a re-render doesn't
      * leak listeners; the body is fully replaced by the line above. */
     const sb = this.bodyEl.querySelector('.src-body');
@@ -74,6 +146,11 @@ export class SourceView {
         const ln = e.target.closest('.src-line');
         if (!ln) return;
         const line = +ln.dataset.line;
+        if (ln.classList.contains('src-collapse')) {
+          this.expandedRuns.add(line - 1);
+          this.render();
+          return;
+        }
         if (!this.lineTargets) return;
         const t = this.lineTargets.byLine.get(line);
         if (t) this.onLineTarget(t);
@@ -84,6 +161,16 @@ export class SourceView {
   highlightId(node, opts = {}) {
     const { line, endLine } = node;
     if (!line) return;
+    /* A highlight landing inside a collapsed sequence run (e.g. the
+     * <alignment> node) expands it first. */
+    if (this.seqRuns.some(r =>
+      !this.expandedRuns.has(r.start) &&
+      line <= r.end + 1 && (endLine || line) >= r.start + 1)) {
+      for (const r of this.seqRuns)
+        if (line <= r.end + 1 && (endLine || line) >= r.start + 1)
+          this.expandedRuns.add(r.start);
+      this.render();
+    }
     this.el.querySelectorAll('.src-line').forEach(el => {
       const ln = +el.dataset.line;
       el.classList.toggle('hi', ln >= line && ln <= (endLine || line));

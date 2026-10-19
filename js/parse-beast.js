@@ -14,10 +14,25 @@
 const SKIP_TAGS = new Set([
   'beast', 'taxa', 'taxon', 'date', 'sequence', 'attr', 'trait', 'attribute',
   'mcmc', 'operators', 'joint', 'prior', 'likelihood', 'posterior',
-  'log', 'logTree', 'column', 'report', 'marginalLikelihoodEstimator',
+  'log', 'logTree', 'loggerTree', 'column', 'report', 'marginalLikelihoodEstimator',
   'pathSamplingAnalysis', 'steppingStoneSamplingAnalysis', 'insertionPoint',
   'generalDataType', 'state', 'alias', 'ambiguity', 'property',
   'logCheckpoint', 'loadCheckpoint', 'checkpoint',
+]);
+
+/* BEAST2-only additions.  <distribution> without spec is a bare wrapper
+ * (BEAUti2 always writes spec=, hand-written files often don't);
+ * <input>/<operator>/<logger>/<distr>/<data> are structural in BEAST2
+ * but never graph nodes in their own right.  <parameter> stays a node
+ * there (BEAUti2 parameters are the sampled variables). */
+const SKIP_TAGS_B2 = new Set([
+  'distribution', 'distr', 'input', 'operator', 'logger', 'state',
+  'init', 'taxon', 'taxa', 'trait', 'sequence', 'beast', 'log',
+  'plate', 'knot', 'usershape', 'meta', 'tree', 'run',
+  /* <operatorschedule> wraps the operator list; <taxonset> and
+   * TreeTopFinder are structural (calibration / species-tree-top
+   * machinery), not model variables. */
+  'operatorschedule', 'taxonset', 'TreeTopFinder',
 ]);
 
 const PARAMETERISH = new Set([
@@ -39,6 +54,12 @@ const OBSERVED_TAGS = new Set([
   'ascertainedPatterns', 'microsatellite', 'microsatellitePattern',
   'multiDimensionalScalingLikelihood', 'continuousTraitData',
 ]);
+
+/* BEAST2: the alignment is <data spec="Alignment"> — mapped by SPEC_MAP
+ * to 'alignment'; but plain <data> (no spec) is also BEAUti2's alignment
+ * tag.  In BEAST1 <data> means "prior target list", so the observed-data
+ * membership of 'data' is dialect-qualified. */
+const OBSERVED_TAGS_B2 = new Set(['data']);
 
 const TREE_TAGS = new Set([
   'treeModel', 'tree', 'newick', 'coalescentSimulator', 'upgmaTree',
@@ -96,6 +117,10 @@ const FACTOR_TAGS = new Set([
 const MACHINERY_TAGS = new Set([
   'gradient', 'branchRateGradient', 'jointGradient', 'hessian',
   'coalescentSimulator', 'upgmaTree', 'neighborJoiningTree',
+  /* BEAST2 starting-tree simulators (TreeParser/RandomTree/…) are NOT
+   * machinery by class: the state tree can be a TreeParser too.  The
+   * discriminator is the initial="@…" attribute (see addNode) — every
+   * corpus initialiser carries it. */
 ]);
 
 // Distribution tags that act as priors when wrapped in a
@@ -121,6 +146,13 @@ const PRIOR_TAGS = new Set([
   'dirichletDistributionModel',
 ]);
 
+/* BEAST2-only prior tags.  BEAST1 calibrations use <MRCAPrior> too but
+ * were never treated as a priors-block entry (monophyly is drawn as a
+ * statistic), so admitting it there would change the BEAST1 digests. */
+const B2_PRIOR_TAGS = new Set(['MRCAPrior']);
+const isPriorTag = t => PRIOR_TAGS.has(t) ||
+  (DIALECT === 2 && B2_PRIOR_TAGS.has(t));
+
 // Compact glyphs for the hyperparameter squares.
 const SHORT_DIST = {
   logNormalPrior: 'LogN', normalPrior: 'N', exponentialPrior: 'Exp',
@@ -134,6 +166,7 @@ const SHORT_DIST = {
   halfNormalDistributionModel: 'HalfN', halfCauchyDistributionModel: 'HalfCauchy',
   halfTPriorDistributionModel: 'Half-t', poissonDistributionModel: 'Pois',
   cauchyDistributionModel: 'Cauchy', dirichletDistributionModel: 'Dir',
+  MRCAPrior: 'MRCA',
 };
 
 // Pretty names for prior distributions.
@@ -158,6 +191,7 @@ const PRIOR_LABEL = {
   halfCauchyDistributionModel: 'HalfCauchy',
   halfTPriorDistributionModel: 'Half-t',
   dirichletDistributionModel: 'Dirichlet',
+  MRCAPrior: 'MRCA',
 };
 
 // Module assignment, in priority order (first match wins).
@@ -184,7 +218,129 @@ const MODULE_META = {
 // ---------------------------------------------------------------- helpers
 
 const isElement = n => n.nodeType === 1;
-const tagOf = el => el.tagName;
+
+/** True when el sits anywhere inside a BEAST2 <operator> block
+ *  (subsamplers, <up>/<down> lists, AVMN <transformations>). */
+const inOperator = el => !!el.parentElement && !!el.closest('operator');
+
+/* Dialect-aware tag.  BEAST X names components with the tag itself
+ * (<hkyModel>); BEAST2 names them with spec="HKY" on generic tags
+ * (<input>, <distribution>, <operator>…).  tagOf(el) returns the
+ * BEAST X tag vocabulary for both dialects, so every table and pass
+ * downstream works unchanged.  Set per parse by parseBeastXML via
+ * setDialect(); for BEAST2 the raw tagName is kept only when there
+ * is no spec (e.g. <data>, <taxon>, <sequence>). */
+let DIALECT = 1;
+/* specTagOf: the tag-normalisation half of tagOf, callable without an
+ * element — the editor's text-based matcher uses it to normalise raw
+ * tags from buildElementIndex.  Exported (Batch 2 imports it). */
+export function specTagOf(rawTag, spec) {
+  /* BEAUti2 v2.7 writes bare distribution tags with no spec
+   * (<Gamma id="Gamma.2" name="distr">); the class name alone
+   * resolves through the same map, mirroring tagOf. */
+  if (!spec) return SPEC_MAP[rawTag] || rawTag;
+  const bare = spec.slice(spec.lastIndexOf('.') + 1);
+  return SPEC_MAP[bare] || bare;
+}
+const tagOf = el => {
+  if (DIALECT === 1) return el.tagName;
+  const spec = el.getAttribute('spec');
+  /* BEAUti2 v2.7 writes bare distribution tags with no spec
+   * (<prior x="@kappa"><LogNormal name="distr">); the class name
+   * alone resolves through the same map. */
+  if (!spec && SPEC_MAP[el.tagName]) return SPEC_MAP[el.tagName];
+  return specTagOf(el.tagName, spec);
+};
+
+/* BEAST2 spec names -> the BEAST X tag vocabulary this parser's
+ * tables are keyed on.  Keyed by the unqualified spec class name
+ * (namespace prefix stripped); unknown specs fall through to the
+ * generic-label path.  `ponytail:` covers specs seen in BEAUti
+ * output and the packages listed in the plan; add entries as new
+ * packages are hit.  The prefixed form distinguishes mapped specs
+ * (which tables understand) from unknown ones. */
+const SPEC_MAP = {
+  // distributions / priors
+  Prior: 'prior', CompoundDistribution: 'joint', LogNormalDistributionModel: 'logNormalDistributionModel',
+  LogNormal: 'logNormalDistributionModel',
+  NormalDistributionModel: 'normalDistributionModel', Exponential: 'exponentialPrior',
+  ExponentialDistributionModel: 'exponentialDistributionModel',
+  Gamma: 'gammaPrior', InverseGamma: 'invgammaPrior',
+  LaplaceDistribution: 'laplaceDistributionModel', UniformDistributionModel: 'uniformDistributionModel',
+  Beta: 'betaPrior', Poisson: 'poissonPrior', CauchyDistribution: 'cauchyDistributionModel',
+  Dirichlet: 'dirichletPrior',   HalfNormal: 'halfNormalPrior', Normal: 'normalPrior', Uniform: 'uniformPrior',
+  HalfT: 'halfTPrior',
+  OneOnX: 'oneOnXPrior', OneOnXPrior: 'oneOnXPrior', CTMCScalePrior: 'ctmcScalePrior',
+  MarkovChainDistribution: 'uniformPrior', MultiMonophyleticConstraint: 'MRCAPrior',
+  // substitution / site models
+  HKY: 'hkyModel', GTR: 'gtrModel', TN93: 'tn93Model', JC69: 'jc69Model',
+  JukesCantor: 'jc69Model', SubstitutionModel: 'substitutionModel',
+  SiteModel: 'siteModel', GammaSiteModel: 'gammaSiteModel',
+  Frequencies: 'frequencyModel', EmpiricalFrequencies: 'frequencyModel',
+  MutationDeathModel: 'substitutionModel', WeightedHaploidGenProvider: null,
+  // clocks
+  StrictClockModel: 'strictClockBranchRates', UCRelaxedClockModel: 'discretizedBranchRates',
+  RandomLocalClockModel: 'randomLocalClockModel', LocalClockModel: 'localClockModel',
+  // trees / coalescent
+  Tree: 'treeModel', ConstantPopulation: 'constantSize',
+  /* bare <tree id="…"/> (no spec) is BEAST2's state-tree placeholder
+   * in hand-written XML; tagOf's no-spec fallback consults this. */
+  tree: 'treeModel',
+  ExponentialGrowth: 'exponentialGrowth', LogisticGrowth: 'logisticGrowth',
+  Expansion: 'expansion', Coalescent: 'coalescentLikelihood',
+  CoalescentConstantPopulation: 'coalescentLikelihood',
+  BayesianSkyline: 'gmrfSkyrideLikelihood',   GMRFBayesianSkyrideLikelihood: 'gmrfSkyrideLikelihood',
+  SkygridLikelihood: 'skyGridLikelihood', GMRFSkygridLikelihood: 'skyGridLikelihood',
+  YuleModel: 'yuleModel',
+  BirthDeathGernhard08Model: 'birthDeathModel', TreeIntervals: 'treeIntervals',
+  // likelihoods
+  TreeLikelihood: 'treeLikelihood', AncestralStateTreeLikelihood: 'ancestralTreeLikelihood',
+  ThreadedTreeLikelihood: 'treeLikelihood',
+  // parameters / operators / statistics
+  RealParameter: 'parameter', IntegerParameter: 'parameter',
+  BooleanParameter: 'parameter', CompoundParameter: 'compoundParameter',
+  ScaleOperator: 'scaleOperator', DeltaExchangeOperator: 'deltaExchangeOperator',
+  UniformOperator: 'uniformOperator', RandomWalkOperator: 'randomWalkOperator',
+  SubtreeSlide: 'subtreeSlide', Exchange: 'narrowExchange',
+  WilsonBalding: 'wilsonBalding', TreeScaler: 'scaleOperator',
+  EssentialImproperScale: 'scaleOperator', Kernel: 'scaleOperator',
+  UpDownOperator: 'upDownOperator', PopulationSizeScaler: 'scaleOperator',
+  TipDatesRandomWalker: 'randomWalkOperator', BitFlipOperator: 'uniformOperator',
+  JumpOperator: 'uniformOperator', SAMOperator: null,
+  // statistics
+  TreeHeightLogger: 'treeHeightStatistic', TreeHeightStatistic: 'treeHeightStatistic',
+  TreeLengthStatistic: 'treeLengthStatistic', Monophyletic: 'monophylyStatistic',
+  CoefficientOfVariationStatistic: 'statistic',
+  // misc structural
+  TaxonSet: 'taxa', Taxon: 'taxon', Alignment: 'alignment', Sequence: 'sequence',
+  MRCAPrior: 'MRCAPrior', TipDates: 'TipDates', TipDatesRandomWalkerX: null,
+  // run block / output
+  MCMC: 'mcmc', Logger: 'logger', TreeWithMetaDataLogger: 'loggerTree',
+  OperatorSchedule: 'operatorschedule',
+  ESS: 'statistic',
+  // MASCOT (v3.0.7 examples) + BEAST2 structural bits: <state spec="State">
+  // is the state block; Mascot is the structured-coalescent tree prior;
+  // Function$Constant is a constant-valued parameter (an Exp prior's mean).
+  State: 'state', Mascot: 'coalescentLikelihood',
+  StructuredTreeIntervals: 'treeIntervals', Sum: 'sumStatistic',
+  'Function$Constant': 'parameter',
+};
+
+function refsOf(el) {
+  const out = [];
+  for (const d of el.getElementsByTagName('*')) {
+    const r = d.getAttribute('idref');
+    if (r) out.push(r);
+  }
+  if (DIALECT === 2) {
+    // BEAST2 attribute references: value="@someId"
+    for (const a of el.attributes) {
+      if (a.value.length > 1 && a.value.startsWith('@')) out.push(a.value.slice(1));
+    }
+    // <input name="tree" idref="x"/> already covered by the scan above.
+  }
+  return out;
+}
 
 function attrsOf(el) {
   const out = {};
@@ -349,6 +505,53 @@ function compactNumber(v) {
   return String(Number(x.toPrecision(3)));
 }
 
+/* ---- BEAST2 plate expansion -----------------------------------------
+ * <plate var='n' range='.p1,.p2,.p3'> deep-clones its body per range
+ * value, replacing $(n) inside every attribute value.  Expanded clones
+ * are recorded in PLATE_TPL so line mapping falls back to the template
+ * element's source lines — the clone's expanded ids do not exist in
+ * the raw text, and editing the template edits every instance. */
+const PLATE_TPL = new WeakMap(); // clone -> template element
+
+function expandPlates(doc) {
+  for (let plates; (plates = [...doc.getElementsByTagName('plate')]).length;) {
+    for (const plate of plates) {
+      const vr = plate.getAttribute('var');
+      const range = (plate.getAttribute('range') || '')
+        .split(',').map(s => s.trim()).filter(Boolean);
+      if (!vr || !range.length) { plate.remove(); continue; }
+      for (const val of range) {
+        for (const child of [...plate.children]) {
+          const c = child.cloneNode(true);
+          substitute(c, child, vr, val);
+          plate.parentNode.insertBefore(c, plate);
+        }
+      }
+      plate.remove();
+    }
+  }
+  function substitute(el, tpl, vr, val) {
+    const tAll = [tpl, ...tpl.getElementsByTagName('*')];
+    const cAll = [el, ...el.getElementsByTagName('*')];
+    for (let i = 0; i < cAll.length; i++) {
+      PLATE_TPL.set(cAll[i], tAll[i]);
+      for (const a of [...cAll[i].attributes]) {
+        if (a.value.includes('$(' + vr + ')')) {
+          cAll[i].setAttribute(a.name, a.value.split('$(' + vr + ')').join(val));
+        }
+      }
+    }
+  }
+}
+
+/* The element a node was cloned from during plate expansion, or null.
+ * Line annotation consults this first so expanded clones highlight the
+ * TEMPLATE's source lines (the edit target for all instances). */
+function templateOf(el) {
+  const t = PLATE_TPL.get(el);
+  return t && templateOf(t) || t;
+}
+
 // ---------------------------------------------------------------- main parse
 
 export function parseBeastXML(text) {
@@ -359,22 +562,29 @@ export function parseBeastXML(text) {
   const root = doc.documentElement;
   if (root.tagName !== 'beast') {
     throw new Error(`Root element is <${root.tagName}>, expected <beast>. ` +
-      'This viewer reads BEAST X / BEAST 1.x XML (beast-mcmc), not BEAST2.');
+      'This viewer reads BEAST X / BEAST 1.x XML (beast-mcmc) and BEAST2 XML.');
   }
-  // Both dialects use <beast>, so tell them apart before producing a graph
-  // that is silently almost empty.
-  if (/^2\./.test(root.getAttribute('version') || '') ||
+  // Both dialects use <beast>: BEAST2 carries version="2.x" / a namespace
+  // attribute / <run>; BEAUti2 output is unambiguous via spec="…" anywhere.
+  const isB2 = /^2\./.test(root.getAttribute('version') || '') ||
       root.hasAttribute('namespace') ||
       doc.getElementsByTagName('run').length ||
-      doc.querySelector('[spec]')) {
-    throw new Error('This looks like a BEAST2 XML (it uses spec="…" / <run> / ' +
-      'a namespace attribute). PhyloPlate reads the BEAST X / BEAST 1.x ' +
-      'dialect produced by BEAUti v10, which names its components with ' +
-      'elements such as <treeModel> and <treeDataLikelihood>.');
-  }
+      doc.querySelector('[spec]');
+  // Select the dialect for tagOf()/refsOf().  BEAST2 files may omit spec on
+  // structural elements, so the tag vocabulary falls back to the raw tag
+  // there; BEAST1 keeps its own tag names.
+  DIALECT = isB2 ? 2 : 1;
+
+  /* BEAST2 <plate var="n" range="a,b,c"> duplicates its body once per
+   * range value, substituting $(n) in attribute values.  Expand up-front
+   * so every walk below (operators, priors, posterior, line targets)
+   * sees a flat document — otherwise plate-nested operators and
+   * likelihoods are invisible to the direct-children walks. */
+  if (isB2) expandPlates(doc);
 
   const meta = {
     version: root.getAttribute('version') || 'unknown',
+    dialect: isB2 ? 'BEAST2' : 'BEAST X',
     generator: firstCommentMatching(doc, /Generated by (.+?)\s*-->|Generated by (.+)/i),
   };
 
@@ -388,21 +598,44 @@ export function parseBeastXML(text) {
   // ---- which parameters does an operator move?  those are sampled.
   const sampled = new Set();
   const operatorsOf = new Map(); // id -> [{tag, attrs}]
-  for (const ops of doc.getElementsByTagName('operators')) {
-    for (const op of ops.children) {
-      if (!isElement(op)) continue;
-      for (const ref of refsUnder(op)) {
-        sampled.add(ref);
-        if (!operatorsOf.has(ref)) operatorsOf.set(ref, []);
-        operatorsOf.get(ref).push({ tag: tagOf(op), attrs: attrsOf(op) });
-      }
+  /* BEAST X: <operators><scaleOperator>…  Every child of <operators>
+   * is an operator — including HMC's <gradient>/<branchRateGradient>,
+   * which mark their targets as sampled.  BEAST2's operator input tag
+   * is literally <operator> (BEAUti output, AdaptableOperatorSampler
+   * subsamplers and <subschedule> groups all nest it), so the walk
+   * takes descendants and needs no spec regex. */
+  const opEls = DIALECT === 2
+    ? [...doc.querySelectorAll('run, operatorschedule')].flatMap(outer =>
+        [...outer.querySelectorAll('operator')])
+    : [...doc.getElementsByTagName('operators')].flatMap(ops => [...ops.children].filter(isElement));
+  const opSet = new Set(opEls);
+  /* B2 only: a sampler's member <operator idref> names another
+   * operator.  BEAST X's HMC <gradient idref> is an operator-to-operator
+   * reference too, but it is part of the sampled machinery the B1
+   * diagram has always shown — gate on dialect. */
+  const opIds = DIALECT === 2
+    ? new Set(opEls.map(op => op.getAttribute('id')).filter(Boolean))
+    : null;
+  for (const op of opEls) {
+    if (!isElement(op)) continue;
+    for (const ref of refsOf(op)) {
+      /* An operator may reference another operator (a sampler's
+       * <operator idref> member, an AVMN's transform list): that is
+       * composition, not "this operator moves variable x". */
+      if (opIds && opIds.has(ref)) continue;
+      sampled.add(ref);
+      if (!operatorsOf.has(ref)) operatorsOf.set(ref, []);
+      operatorsOf.get(ref).push({ tag: tagOf(op), attrs: attrsOf(op) });
     }
   }
 
   // ---- prior block: distribution -> target parameter
   const priorsOf = new Map(); // targetId -> [{dist, label, attrs}]
   for (const el of doc.getElementsByTagName('*')) {
-    if (!PRIOR_TAGS.has(tagOf(el))) continue;
+    if (!isPriorTag(tagOf(el))) continue;
+    /* <operator spec="Uniform"> maps to uniformPrior via SPEC_MAP; it is
+     * an operator, not a density.  (opSet is built above this loop.) */
+    if (opSet.has(el)) continue;
     // A prior targets a variable, not the structural arguments it is
     // conditioned on: <ctmcScalePrior> names both its parameter and the tree.
     //
@@ -419,6 +652,30 @@ export function parseBeastXML(text) {
     // children.
     let targets = refsUnder(el)
       .filter(r => byId.has(r) && PARAMETERISH.has(tagOf(byId.get(r))));
+    if (!targets.length && DIALECT === 2 && tagOf(el) === 'MRCAPrior') {
+      /* BEAST2 calibration: <distribution spec="MRCAPrior" …><taxonset>…
+       * <input name="tree" idref="Tree.t"/><distr>… — the target is the
+       * tree the calibration applies to. */
+      targets = refsUnder(el)
+        .filter(r => byId.has(r) && TREE_TAGS.has(tagOf(byId.get(r))));
+    }
+    if (!targets.length && DIALECT === 2) {
+      /* BEAST2 Prior form: the target sits either on the distribution
+       * itself (<distribution spec="OneOnX" x="@popSize"/>) or on the
+       * wrapping Prior (<distribution spec="Prior" x="@kappa"><distr>…
+       * </distribution>), as an @-attribute or a name="x" input. */
+      const from = e => (e.getAttribute('x') || '').replace(/^@/, '') ||
+        [...e.children].find(c => isElement(c) &&
+          c.getAttribute('name') === 'x')?.getAttribute('idref') || '';
+      const wrap = el.parentElement || null;
+      const xview = wrap && [...wrap.children].find(c => isElement(c) &&
+        c.tagName === 'x') || null;
+      let xref = from(el) || (wrap ? from(wrap) : '') ||
+        (xview ? refsUnder(xview)[0] || '' : '');
+      if (xref && byId.has(xref) && PARAMETERISH.has(tagOf(byId.get(xref)))) {
+        targets.push(xref);
+      }
+    }
     if (!targets.length) {
       const parent = el.parentElement;
       if (parent && tagOf(parent) === 'distribution') {
@@ -434,7 +691,8 @@ export function parseBeastXML(text) {
         targets = [];
         for (const sib of parent.children) {
           if (!isElement(sib)) continue;
-          const r = sib.getAttribute('idref');
+          const r = sib.getAttribute('idref') ||
+                    (sib.getAttribute('x') || '').replace(/^@/, '');
           if (r && byId.has(r) && PARAMETERISH.has(tagOf(byId.get(r)))) {
             targets.push(r);
           }
@@ -447,6 +705,24 @@ export function parseBeastXML(text) {
         dist: tagOf(el),
         label: PRIOR_LABEL[tagOf(el)] || tagOf(el),
         attrs: distAttrs(el),
+        /* Editor matcher fields (B2 only; digest-safe — the digest
+         * serializes dist+attrs, not these).  eid is the element's own
+         * id (BEAUti2 ids are unique), specBare/densitySpecBare the
+         * unqualified spec names for elements with no id, realTag the
+         * raw XML tag so the editor can find it in the text. */
+        ...(DIALECT === 2 ? {
+          eid: el.getAttribute('id') || null,
+          realTag: el.tagName,
+          specBare: (el.getAttribute('spec') || '').slice(
+            (el.getAttribute('spec') || '').lastIndexOf('.') + 1) || null,
+          densitySpecBare: (() => {
+            const d = [...el.children].find(c => isElement(c) &&
+              tagOf(c) !== 'parameter' && !c.getAttribute('idref'));
+            if (!d) return null;
+            const s = d.getAttribute('spec') || '';
+            return s.slice(s.lastIndexOf('.') + 1) || null;
+          })(),
+        } : {}),
       });
     }
   }
@@ -488,7 +764,15 @@ export function parseBeastXML(text) {
       type: classify(el, id, sampled, priorsOf),
       module: moduleOf(el, id),
       machinery: MACHINERY_TAGS.has(tag) ||
-                 (STATISTIC_TAGS.has(tag) && !refsOutsideLogs.has(id)),
+                 (STATISTIC_TAGS.has(tag) && !refsOutsideLogs.has(id)) ||
+                 /* BEAST2: an element is an initialiser (starting-tree
+                  * supplier, machinery like RandomTree) when it carries
+                  * initial="@…" or is the nested BEAUti2 form
+                  * <input name="initial" spec="TreeParser">.  The state
+                  * tree itself never carries either. */
+                 (DIALECT === 2 && ((
+                   attrs.initial && /^\s*@/.test(attrs.initial)) ||
+                   attrs.name === 'initial')),
       priors: priorsOf.get(id) || [],
       operators: operatorsOf.get(id) || [],
       role: roleOf(el),
@@ -502,8 +786,38 @@ export function parseBeastXML(text) {
   }
 
   for (const [id, el] of byId) {
-    if (SKIP_TAGS.has(tagOf(el))) continue;
-    if (PRIOR_TAGS.has(tagOf(el)) && !FACTOR_TAGS.has(tagOf(el))) continue;
+    const t = tagOf(el);
+    if (SKIP_TAGS.has(t)) continue;
+    if (DIALECT === 2 && (SKIP_TAGS_B2.has(t) || opSet.has(el) || inOperator(el))) continue;
+    /* Spec'd wrapper whose raw tag is a skip-word: skip only when its spec
+     * is NOT a mapped, model-meaningful class. <distribution spec="Mascot">
+     * stays (mapped → coalescentLikelihood, the structured-coalescent tree
+     * prior); <log spec="…TreeStatLogger"> goes (no mapping → logger junk).
+     * Bare wrappers with no spec fall through to tagOf (bug-2 <tree/>). */
+    /* Output/structural wrappers whose raw tag is a skip-word: skip
+     * only when the spec is NOT a mapped class, and only for the two
+     * raw tags that are pure output/data plumbing.  <log spec=…>
+     * loggers are machinery unless mapped (TreeHeightLogger stays, as
+     * in the B2 tester baseline); <trait> is B1 parity (BEAST X skips
+     * date traits).  Other wrappers — <input spec="ClusterTree">,
+     * <tree spec="TreeParser">, <input name="initial"> initialisers —
+     * carry real model objects and must stay nodes. */
+    if (DIALECT === 2 && (el.tagName === 'log' || el.tagName === 'trait') &&
+        !SPEC_MAP[(el.getAttribute('spec') || '').slice(el.getAttribute('spec').lastIndexOf('.') + 1)])
+      continue;
+    /* <init> wrappers (any spec) hold starting-tree machinery; raw-tag
+     * test so the check is dialect-neutral. */
+    if (el.tagName === 'init') continue;
+    if (PRIOR_TAGS.has(t) && !FACTOR_TAGS.has(t)) continue;
+    /* BEAUti2 nests named hyperparameters inside <distr>/<prior>
+     * (<parameter name="M" value="1.0"/>); their values are already
+     * flattened into the hyperparameter square by distAttrs, so the
+     * standalone node is pure noise. */
+    if (DIALECT === 2 && t === 'parameter') {
+      const p = el.parentElement;
+      const pt = p ? tagOf(p) : null;
+      if (pt === 'distr' || isPriorTag(pt)) continue;
+    }
     if (isTreeInternal(el)) continue;   // node heights are part of the tree itself
     if (alias.has(id)) continue;        // folded into its alignment
     addNode(el, id);
@@ -574,6 +888,22 @@ export function parseBeastXML(text) {
     if (seen.has(key)) return;
     seen.add(key);
     edges.push({ source: from, target: to, kind: kind || 'solid' });
+  }
+
+  // BEAUti2 declares parameters in <state> and wires them with @id
+  // attribute references (tree="@Tree.t:primate"), so the referenced
+  // element sits elsewhere in the document and no idref ancestor can
+  // be found.  One pass: every node element's @attr adds ref -> own.
+  if (DIALECT === 2) for (const d of doc.getElementsByTagName('*')) {
+    const own = canon(d.getAttribute('id') || '');
+    if (!own || !nodes.has(own)) continue;
+    for (const a of d.attributes) {
+      if (a.value.length > 1 && a.value.startsWith('@')) {
+        const child = canon(a.value.slice(1));
+        if (child && nodes.has(child))
+          addEdge(child, own, nodes.get(own).type === 'deterministic' ? 'dashed' : 'solid');
+      }
+    }
   }
 
   // One pass over the document, not one per node: walking every node's whole
@@ -668,6 +998,7 @@ export function parseBeastXML(text) {
  * that structure rather than inferring it, so the notation view reflects what
  * the sampler actually targets. */
 function readPosterior(doc, nodes, canon) {
+  if (DIALECT === 2) return readPosteriorB2(doc, nodes, canon);
   const out = { prior: [], likelihood: [], found: false };
 
   const block = name => {
@@ -770,11 +1101,107 @@ function readPosterior(doc, nodes, canon) {
   return out;
 }
 
+/* BEAST2: the posterior is <distribution spec="CompoundDistribution"
+ * id="posterior"> holding <distribution id="prior"> and
+ * <distribution id="likelihood"> children.  Children of prior are
+ * either idrefs to factor-like likelihoods (coalescent, MRCAPrior with
+ * its own tree) or inline distributions whose x input names the
+ * target parameter.  Same term shape as the BEAST1 path. */
+function readPosteriorB2(doc, nodes, canon) {
+  const out = { prior: [], likelihood: [], found: false };
+  const post = [...doc.getElementsByTagName('distribution')]
+    .find(d => d.getAttribute('id') === 'posterior');
+  if (!post) return out;
+
+  const targetOf = dist => {
+    const x = (dist.getAttribute('x') || '').replace(/^@/, '');
+    if (x) return x;
+    const inp = [...dist.children].find(c => isElement(c) &&
+      c.getAttribute('name') === 'x');
+    if (inp) return inp.getAttribute('idref') || '';
+    /* BEAUti2 sometimes wraps the x input in a derived-view element
+     * (mascot.util.First, beastlabs.core.util.Slice, feast
+     * .expressions.ExpCalculator, …) instead of naming the parameter
+     * directly.  The prior then conditions on a deterministic function
+     * of the sampled parameter — attach it to that parameter. */
+    const view = [...dist.children].find(c => isElement(c) &&
+      c.tagName === 'x');
+    return view ? (refsUnder(view)[0] || '') : '';
+  };
+
+  for (const blockName of ['prior', 'likelihood']) {
+    const block = [...post.children].find(c => isElement(c) &&
+      c.getAttribute('id') === blockName);
+    if (!block) continue;
+    /* A block is either a list of idref children (BEAUti2) or a single
+     * self-closing idref (likelihood); resolve idrefs to their
+     * elements so the same logic applies either way. */
+    const items = block.children.length
+      ? [...block.children].filter(isElement)
+      : [block];
+    for (const item of items) {
+      const el = item.getAttribute('idref')
+        ? doc.getElementById(item.getAttribute('idref')) : item;
+      if (!el) continue;
+      const tag = tagOf(el);
+      /* spec="Prior" wrappers: the factor statement belongs to the
+       * <distr> child; the x input names the target. */
+      const isWrapper = tag === 'prior';
+      if (!isWrapper && !isPriorTag(tag)) {
+        const id = canon(el.getAttribute('id') || '');
+        if (nodes.has(id)) out[blockName].push({ kind: 'factor', id });
+        continue;
+      }
+      const distEl = isWrapper
+        ? [...el.children].find(c => isElement(c) && isPriorTag(tagOf(c)))
+        : el;
+      if (!distEl) continue;
+      const dtag = tagOf(distEl);
+      let t = isWrapper ? targetOf(el) : targetOf(distEl);
+      if (!t && dtag === 'MRCAPrior') {
+        /* A calibration conditions on the tree itself. */
+        const byId = byIdOf(doc);
+        t = refsUnder(el)
+          .find(r => byId.has(r) &&
+                     TREE_TAGS.has(tagOf(byId.get(r)))) || null;
+      }
+      if (!t || !nodes.has(canon(t)) ||
+          (!PARAMETERISH.has(nodes.get(canon(t)).tag) &&
+           !TREE_TAGS.has(nodes.get(canon(t)).tag))) continue;
+      /* MRCAPrior's own children are the taxonset/tree/distr, not
+       * hyperparameters; the density's parameters live in <distr>. */
+      const argSrc = dtag === 'MRCAPrior'
+        ? distEl.querySelector('distr') : distEl;
+      out[blockName].push({
+        kind: 'dist', target: canon(t), dist: dtag,
+        label: PRIOR_LABEL[dtag] || dtag,
+        given: [],
+        args: Object.entries(distAttrs(argSrc || distEl))
+          .filter(([k, v]) => !['id', 'idref', 'spec', 'name'].includes(k) &&
+                              !(k === 'offset' && Number(v) === 0)),
+      });
+    }
+  }
+  out.found = out.prior.length > 0 || out.likelihood.length > 0;
+  return out;
+}
+
+/* byId for readPosteriorB2: element lookup by id attribute. */
+function byIdOf(doc) {
+  const m = new Map();
+  for (const el of doc.getElementsByTagName('*')) {
+    if (el.getAttribute('id') && !m.has(el.getAttribute('id')))
+      m.set(el.getAttribute('id'), el);
+  }
+  return m;
+}
+
 // ---------------------------------------------------------------- classifiers
 
 function classify(el, id, sampled, priorsOf) {
   const tag = tagOf(el);
-  if (OBSERVED_TAGS.has(tag)) return 'clamped';
+  if (OBSERVED_TAGS.has(tag) ||
+      (DIALECT === 2 && OBSERVED_TAGS_B2.has(tag) && !el.hasAttribute('spec'))) return 'clamped';
   if (FACTOR_TAGS.has(tag)) return 'factor';
   if (STATISTIC_TAGS.has(tag)) return 'deterministic';
   if (SUBST_TAGS.has(tag) || CLOCK_TAGS.has(tag)) return 'deterministic';
@@ -839,9 +1266,13 @@ function countRefsOutsideLogs(doc) {
 
 function refsUnder(el) {
   const out = [];
+  const scanAt = e => { for (const a of e.attributes)
+    if (a.value.length > 1 && a.value.startsWith('@')) out.push(a.value.slice(1)); };
+  if (DIALECT === 2) scanAt(el);
   for (const d of el.getElementsByTagName('*')) {
     const r = d.getAttribute('idref');
     if (r) out.push(r);
+    if (DIALECT === 2) scanAt(d);
   }
   return out;
 }
@@ -858,15 +1289,50 @@ function refsUnder(el) {
  *                                          ...
  *                                        </normalDistributionModel>
  *
+ * BEAST 2 nests a named <parameter> instead of a named wrapper:
+ *   <distr spec="LogNormalDistributionModel">
+ *     <parameter name="M" value="1.0"/>   (mean of ln x)
+ *     <parameter name="S" value="1.25"/>  (sigma of ln x)
+ *   </distr>
+ * keyed by BEAST2's parameter names M/S (log-normal), alpha/beta (gamma).
+ *
  * Walk the children and read either the inner <parameter value="…"/>
  * or, failing that, the element's own text.  Top-level attributes
  * (e.g. `meanInRealSpace`) are kept on top. */
-function distAttrs(el) {
+export function distAttrs(el) {
   const out = { ...attrsOf(el) };
+  /* MRCAPrior: the height prior is a nested distribution (BEAST X
+   * <logNormalPrior …>, BEAST2 <distr spec="…">) — flatten its
+   * hyperparameters (mean/stdev/offset) onto the calibration record
+   * and skip the generic slot pass, which would otherwise emit the
+   * nested element's tag name as a junk key. */
+  if (tagOf(el) === 'MRCAPrior') {
+    const inner = [...el.children].find(c => isElement(c) &&
+      (tagOf(c).endsWith('Prior') || tagOf(c).endsWith('DistributionModel')));
+    if (inner) {
+      for (const [k, v] of Object.entries(distAttrs(inner))) {
+        if (k !== 'spec' && k !== 'id' && out[k] == null) out[k] = v;
+      }
+      return out;
+    }
+  }
   for (const slot of el.children) {
     if (!isElement(slot)) continue;
+    /* BEAUti2 writes hyperparameters as <parameter name="mean">…</parameter>
+     * children; the name= pass below reads them.  Skipping them here
+     * stops the text-branch from filing the value under a junk
+     * 'parameter' key. */
+    if (DIALECT === 2 && slot.tagName === 'parameter') continue;
     const key = tagOf(slot);
     if (out[key] != null) continue;     // attribute already set
+    /* MASCOT-style slots carry the value as a direct attribute on a
+     * spec'd wrapper: <mean spec="Function$Constant" value="1.0"/>.
+     * The raw tag names the slot (mean), not the spec. */
+    if (DIALECT === 2) {
+      const v = slot.getAttribute('value');
+      if (v != null && out[slot.tagName] == null) { out[slot.tagName] = v; }
+      if (v != null) continue;
+    }
     const p = slot.getElementsByTagName('parameter')[0];
     if (p) {
       const v = p.getAttribute('value');
@@ -876,6 +1342,32 @@ function distAttrs(el) {
      *   <shape>70.0</shape>  — treat that as the slot value. */
     const t = (slot.textContent || '').trim();
     if (t && /^-?\d/.test(t)) out[key] = t;
+  }
+  /* BEAST2: direct <parameter name="M"> children of the distribution.
+   * BEAST X never writes name= on a <parameter> (its slots are wrapper
+   * elements), so name= is an unambiguous BEAST2 marker. */
+  if (DIALECT === 2) {
+    for (const p of el.children) {
+      if (!isElement(p) || !p.getAttribute('name')) continue;
+      const key = p.getAttribute('name');
+      const v = p.getAttribute('value') ?? (p.textContent || '').trim();
+      if (v !== '' && v != null && out[key] == null) out[key] = v;
+    }
+    /* Rename BEAUti2's native parameter names onto the canonical field
+     * names the notation, editor forms, and PDF sampler share — so the
+     * B2 gamma prior reads shape/scale like its BEAST X twin rather
+     * than alpha/beta, and the edit forms prefill from canonical keys.
+     * setAttrOnElement maps back to the native names when writing.
+     * Gamma can instead be parameterised ShapeRate, where beta IS the
+     * rate (scale = 1/rate) — keep the native spelling there rather
+     * than mislabelling it as the scale. */
+    const CANON = { alpha: 'shape', beta: 'scale', M: 'mean', S: 'stdev',
+                    sigma: 'stdev', lambda: 'mean' };
+    const gammaRate = tagOf(el) === 'gammaPrior' && el.getAttribute('mode') === 'ShapeRate';
+    for (const [nat, canon] of Object.entries(CANON)) {
+      if (gammaRate && (nat === 'alpha' || nat === 'beta')) continue;
+      if (out[nat] != null && out[canon] == null) { out[canon] = out[nat]; delete out[nat]; }
+    }
   }
   return out;
 }
@@ -934,6 +1426,21 @@ function posteriorClosure(doc, nodes, edges) {
       for (const d of block.getElementsByTagName('*')) {
         const r = d.getAttribute('idref');
         if (r && nodes.has(r)) seeds.add(r);
+      }
+    }
+  }
+  /* BEAST2: the posterior is <distribution id="posterior"> whose blocks
+   * hold @-refs and inline distributions, not idref lists.  Seed from
+   * the block's refs (refsUnder is @-aware) and from the ids of any
+   * node elements nested inside it. */
+  if (DIALECT === 2) {
+    const post = [...doc.getElementsByTagName('distribution')]
+      .find(d => d.getAttribute('id') === 'posterior');
+    if (post) {
+      for (const r of refsUnder(post)) if (nodes.has(r)) seeds.add(r);
+      for (const d of post.getElementsByTagName('*')) {
+        const id = d.getAttribute('id');
+        if (id && nodes.has(id)) seeds.add(id);
       }
     }
   }
@@ -1032,11 +1539,18 @@ function annotateLines(text, nodes, doc) {
   for (const el of doc.getElementsByTagName('*')) {
     const id = el.getAttribute('id');
     if (!id || index.has(id)) continue;
-    const idIdx = text.indexOf('id="' + id + '"');
+    /* Plate clones: annotate the TEMPLATE's source span — the clone's
+     * expanded id does not exist in the raw text, and editing the
+     * template element edits every instance. */
+    const src = templateOf(el) || el;
+    const srcId = src.getAttribute('id');
+    if (!srcId) continue;
+    let idIdx = text.indexOf('id="' + srcId + '"');
+    if (idIdx < 0) idIdx = text.indexOf("id='" + srcId + "'");
     if (idIdx < 0) continue;
     const startOff = text.lastIndexOf('<', idIdx);
     if (startOff < 0) continue;
-    const closeIdx = text.indexOf('</' + el.tagName + '>', idIdx);
+    const closeIdx = text.indexOf('</' + src.tagName + '>', idIdx);
     const selfClose = text.indexOf('/>', idIdx);
     let endOff;
     if (closeIdx > 0 && (selfClose < 0 || closeIdx < selfClose)) {
@@ -1096,46 +1610,69 @@ function buildLineTargets(doc, text) {
   const seenPrior = new Map();
   const seenOp = new Map();
 
-  /* nthIndexOf: find the i-th (0-based) occurrence of `needle` in
-   * `text` starting from `from`.  Used to resolve duplicate elements
-   * to their i-th source position when an element has no id. */
-  function nthIndexOf(text, needle, from, n) {
-    let off = from || 0;
-    for (let i = 0; i <= n; i++) {
-      const idx = text.indexOf(needle, off);
-      if (idx < 0) return -1;
-      if (i === n) return idx;
-      off = idx + needle.length;
-    }
-    return -1;
-  }
-
   function rangeOf(el, occurrenceIndex) {
-    /* If the element has an id, the id string is unique enough to
-     * locate it directly. */
-    const id = el.getAttribute('id');
+    /* Plate clones: locate the TEMPLATE's source span — expanded ids
+     * are not in the raw text. */
+    const src = templateOf(el) || el;
+    const id = src.getAttribute('id');
     let startOff;
     if (id) {
-      const idIdx = text.indexOf('id="' + id + '"');
+      let idIdx = text.indexOf('id="' + id + '"');
+      if (idIdx < 0) idIdx = text.indexOf("id='" + id + "'");
       startOff = idIdx >= 0 ? text.lastIndexOf('<', idIdx) : -1;
     } else if (typeof occurrenceIndex === 'number') {
-      /* No id — find the i-th `<tagName` start. */
-      startOff = nthIndexOf(text, '<' + el.tagName, 0, occurrenceIndex);
+      /* No id — find the i-th `<tagName` start.  Match the tag
+       * boundary too: a plain indexOf('<distr') would also hit
+       * '<distribution' and '<distributionLikelihood'. */
+      startOff = nthStartOf(text, src.tagName, occurrenceIndex);
     } else {
-      startOff = text.indexOf('<' + el.tagName);
+      startOff = nthStartOf(text, src.tagName, 0);
     }
     if (startOff < 0) return null;
-    const closeIdx = text.indexOf('</' + el.tagName + '>', startOff);
-    const selfClose = text.indexOf('/>', startOff);
+    /* End offset: the matching close tag, a self-close, or the next
+     * start boundary — searched from the element's own start so a
+     * later element's close tag is never mistaken for this one's. */
+    const closeRe = new RegExp('</\\s*' + src.tagName + '\\s*>', 'g');
+    closeRe.lastIndex = startOff;
+    const closeMatch = closeRe.exec(text);
+    /* A child's self-close ('/>' inside the body) must not end THIS
+     * element: only trust '/>' when it appears before any child tag
+     * opening on the element's own opening line. */
+    const openTagEnd = (() => {
+      const gt = text.indexOf('>', startOff);
+      return gt < 0 ? startOff : gt;
+    })();
+    const selfClose = (text.indexOf('/>', startOff) >= 0 &&
+                       text.indexOf('/>', startOff) < openTagEnd &&
+                       text.slice(startOff, openTagEnd).indexOf('<', 1) < 0)
+      ? text.indexOf('/>', startOff) : -1;
     let endOff;
-    if (closeIdx > 0 && (selfClose < 0 || closeIdx < selfClose)) {
-      endOff = closeIdx + ('</' + el.tagName + '>').length;
+    if (closeMatch) {
+      endOff = closeMatch.index + closeMatch[0].length;
     } else if (selfClose > 0) {
       endOff = selfClose + 2;
     } else {
       endOff = startOff + text.slice(startOff).indexOf('>') + 1;
     }
     return { start: startOff, end: endOff };
+  }
+
+  /* nthStartOf: offset of the n-th (0-based) `<tag` that starts a real
+   * tag with this exact name (boundary-checked: not a prefix of a
+   * longer tag name).  B2 normalises spec'd elements to a shared
+   * vocabulary, so a B2 prior's normalized tag (e.g. exponentialPrior)
+   * may not appear in the text at all — fall back to the raw tagName,
+   * then to any `<` boundary carrying the element's id-free attributes
+   * is skipped: BEAUti2 elements carry ids, so `<tag` + id lookup is
+   * the path that matters. */
+  function nthStartOf(text, tagName, n) {
+    const re = new RegExp('<' + tagName + '(?=[\\s/>])', 'g');
+    let i = 0;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      if (i++ === n) return m.index;
+    }
+    return -1;
   }
 
   function targetOf(el) {
@@ -1148,11 +1685,14 @@ function buildLineTargets(doc, text) {
      *     where the target is a SIBLING of the distribution inside a
      *     <prior> wrapper.  In that case we walk up to the <prior>
      *     and look for an idref sibling.
-     * The first match with a real idref wins.  We prefer idref over
-     * id because a distribution's hyperparameters (<parameter value="…">)
-     * have no idref and shouldn't be mistaken for the target. */
+     * The first match with a real idref wins.  Prefer idref over id:
+     * a distribution's hyperparameters (<parameter value="…">) have no
+     * idref and shouldn't be mistaken for the target.  (The old code
+     * fell back to p.getAttribute('id') — a nested hyperparameter's
+     * OWN id, e.g. rn_gubbin's <parameter id="clock.logMean"> inside
+     * <mean>, hijacked the row and mis-targeted the sidebar.) */
     for (const p of el.getElementsByTagName('parameter')) {
-      const r = p.getAttribute('idref') || p.getAttribute('id');
+      const r = p.getAttribute('idref');
       if (r) return r;
     }
     const parent = el.parentElement;
@@ -1160,7 +1700,7 @@ function buildLineTargets(doc, text) {
       const dl = parent.parentElement;
       if (dl && tagOf(dl) === 'distributionLikelihood') {
         for (const p of dl.getElementsByTagName('parameter')) {
-          const r = p.getAttribute('idref') || p.getAttribute('id');
+          const r = p.getAttribute('idref');
           if (r) return r;
         }
       }
@@ -1174,6 +1714,32 @@ function buildLineTargets(doc, text) {
     return null;
   }
 
+  /* BEAST2 target: the x input — @id attribute on the distribution or
+   * wrapping Prior, or a <input name="x" idref>/<parameter name="x"
+   * idref> child. */
+  function targetOfB2(el) {
+    const from = e => {
+      if (!e || !e.getAttribute) return '';
+      return (e.getAttribute('x') || '').replace(/^@/, '');
+    };
+    const fromChild = e => {
+      const inp = [...(e.children || [])].find(c => isElement(c) &&
+        c.getAttribute('name') === 'x');
+      return inp ? (inp.getAttribute('idref') || '') : '';
+    };
+    /* MRCA calibration: the target is the tree the calibration applies
+     * to (<input name="tree" idref="Tree.t"/> or a @tree attribute). */
+    if (tagOf(el) === 'MRCAPrior') {
+      const tattr = (el.getAttribute('tree') || '').replace(/^@/, '');
+      if (tattr) return tattr;
+      const inp = [...(el.children || [])].find(c => isElement(c) &&
+        c.getAttribute('name') === 'tree');
+      if (inp && inp.getAttribute('idref')) return inp.getAttribute('idref');
+    }
+    return from(el) || fromChild(el) || from(el.parentElement) ||
+           fromChild(el.parentElement);
+  }
+
   /* Priors: every *Prior and *DistributionModel that has a target.
    * Distribution-model priors sit inside a <distributionLikelihood>;
    * the target idref is on the wrapping likelihood's <data> child, so
@@ -1181,8 +1747,12 @@ function buildLineTargets(doc, text) {
    * rangeOf can find the correct element when several share a tag. */
   const seenPriorTag = new Map();
   for (const el of doc.getElementsByTagName('*')) {
-    if (!PRIOR_TAGS.has(tagOf(el))) continue;
-    const t = targetOf(el);
+    if (!isPriorTag(tagOf(el))) continue;
+    /* Plate clones have no row in the raw-text editor (it sees the
+     * unexpanded <plate>); emitting rows here would desynchronise the
+     * op:${i} / pri-* keys.  Editor-side expansion is deferred. */
+    if (templateOf(el)) continue;
+    let t = DIALECT === 2 ? (targetOfB2(el) || targetOf(el)) : targetOf(el);
     if (!t) continue;
     const tag = tagOf(el);
     const tagI = seenPriorTag.get(tag) || 0;
@@ -1213,14 +1783,22 @@ function buildLineTargets(doc, text) {
    * matching what McmcEditor.operatorRow writes as data-row-key. */
   const seenOpTag = new Map();
   let opIdx = 0;
-  for (const ops of doc.getElementsByTagName('operators')) {
-    for (const op of ops.children) {
-      if (!isElement(op)) continue;
+  const opIter = DIALECT === 2
+    ? [...doc.querySelectorAll('run, operatorschedule')].flatMap(outer =>
+        [...outer.querySelectorAll('operator')])
+    : [...doc.getElementsByTagName('operators')].flatMap(ops => [...ops.children].filter(isElement));
+  const opIds = DIALECT === 2
+    ? new Set(opIter.map(op => op.getAttribute('id')).filter(Boolean))
+    : null;
+  for (const op of opIter) {
+    if (templateOf(op)) continue; // plate clone — no raw-text row
+    {
       const tag = tagOf(op);
       /* Expand refsUnder(op) so an upDownOperator with multiple refs
        * gets one row per ref.  Skip duplicate refs to avoid two rows
-       * pointing at the same target on a single operator. */
-      const refs = [...new Set(refsUnder(op))];
+       * pointing at the same target on a single operator.  A member
+       * <operator idref> names another operator, not a variable. */
+      const refs = [...new Set(refsOf(op))].filter(r => !opIds || !opIds.has(r));
       if (refs.length === 0) continue;
       const tagI = seenOpTag.get(tag) || 0;
       seenOpTag.set(tag, tagI + 1);
@@ -1242,8 +1820,14 @@ function buildLineTargets(doc, text) {
       }
     }
   }
-  /* <mcmc>, <log>, <logTree>: one row per occurrence. */
-  for (const el of doc.getElementsByTagName('mcmc')) {
+  /* <mcmc>, <log>, <logTree>: one row per occurrence.  BEAST2's chain
+   * settings live on <run spec="MCMC"> — one row per run.  An element
+   * that carries only an idref (e.g. <mcmc idref> inside <report>) is
+   * a reference, not a definition — nothing to edit or jump to. */
+  for (const el of DIALECT === 2
+    ? doc.querySelectorAll('run[spec="MCMC"]')
+    : doc.getElementsByTagName('mcmc')) {
+    if (!el.getAttribute('id') && el.getAttribute('idref')) continue;
     const r = rangeOf(el);
     if (!r) continue;
     ranges.push({
@@ -1254,10 +1838,11 @@ function buildLineTargets(doc, text) {
       rowKey: 'mcmc',
     });
   }
-  const logKinds = ['log', 'logTree'];
+  const logKinds = DIALECT === 2 ? ['logger'] : ['log', 'logTree'];
   for (const kind of logKinds) {
     let i = 0;
     for (const el of doc.getElementsByTagName(kind)) {
+      if (!el.getAttribute('id') && el.getAttribute('idref')) continue;
       const r = rangeOf(el);
       if (!r) continue;
       ranges.push({
@@ -1265,7 +1850,7 @@ function buildLineTargets(doc, text) {
         startLine: lineAt(r.start),
         endLine: lineAt(Math.max(r.end - 1, r.start)),
         kind: 'log', tag: kind, target: null, i,
-        rowKey: `log:${i}`,
+        rowKey: `log:${kind}:${i}`,
       });
       i++;
     }
@@ -1298,23 +1883,33 @@ function firstCommentMatching(doc, re) {
 
 function summarise(nodes, doc) {
   const count = t => [...nodes.values()].filter(n => n.type === t).length;
-  const mcmc = doc.querySelector('mcmc');
+  const mcmc = DIALECT === 2
+    ? doc.querySelector('run[spec="MCMC"]')
+    : doc.querySelector('mcmc');
   const taxa = doc.querySelector('taxa');
-  const aln = doc.querySelector('alignment');
+  const aln = DIALECT === 2
+    ? [...doc.querySelectorAll('data')].find(d => d.querySelector('sequence') &&
+        (d.getAttribute('spec') || '').includes('Alignment') ||
+        d.querySelector('sequence'))
+    : doc.querySelector('alignment');
   let nchar = null;
   if (aln) {
     const s = aln.querySelector('sequence');
     if (s) nchar = (s.textContent.match(/[A-Za-z\-?]/g) || []).length;
   }
-  const opCount = doc.getElementsByTagName('operators')[0]
-    ? [...doc.getElementsByTagName('operators')[0].children].filter(c => c.nodeType === 1).length
-    : 0;
+  const opCount = DIALECT === 2
+    ? [...doc.querySelectorAll('run, operatorschedule')].flatMap(outer =>
+        [...outer.querySelectorAll('operator')]).length
+    : doc.getElementsByTagName('operators')[0]
+      ? [...doc.getElementsByTagName('operators')[0].children].filter(c => c.nodeType === 1).length
+      : 0;
   let priorCount = 0;
   for (const el of doc.getElementsByTagName('*')) {
-    if (PRIOR_TAGS.has(tagOf(el))) priorCount++;
+    if (isPriorTag(tagOf(el))) priorCount++;
   }
+  const ntax = taxa ? taxa.getElementsByTagName('taxon').length : null;
   return {
-    ntax: taxa ? taxa.getElementsByTagName('taxon').length : null,
+    ntax: ntax ?? (aln ? aln.querySelectorAll('sequence').length : null),
     nchar,
     chainLength: mcmc ? mcmc.getAttribute('chainLength') : null,
     constant: count('constant'),

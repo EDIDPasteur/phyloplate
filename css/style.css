@@ -790,6 +790,16 @@ table.audit-table tr:hover td {
 .source-pane .source-body .src-line.hi .ln {
   color: var(--orange); font-weight: 600;
 }
+.source-pane .source-body .src-line.src-collapse {
+  cursor: pointer;
+}
+.source-pane .source-body .src-line.src-collapse .code {
+  color: var(--text-faint);
+  font-style: italic;
+}
+.source-pane .source-body .src-line.src-collapse:hover {
+  background: color-mix(in srgb, var(--teal-500) 12%, transparent);
+}
 .source-pane .source-body .src-line .code { padding-left: 12px; }
 .source-pane .source-body .src-line .code .tag { color: var(--teal-700); }
 .source-pane .source-body .src-line .code .attr { color: var(--orange-dark); }

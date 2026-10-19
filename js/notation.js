@@ -1,9 +1,10 @@
 /* Renders the parsed model as probabilistic-model notation: the posterior
  * factorisation, then the distributional statement behind every term.
  *
- * The factorisation is the one BEAST itself targets — read from <joint>,
- * <prior> and <likelihood> — so this view and the diagram describe the same
- * object, per Eq. 1-2 of Hohna et al. (2014). */
+ * The factorisation is the one BEAST itself targets — read from the joint
+ * structure (BEAST X: <joint>/<prior>/<likelihood>; BEAST 2: the
+ * <distribution id="posterior"> block) — so this view and the diagram
+ * describe the same object, per Eq. 1-2 of Hohna et al. (2014). */
 
 const TEX = {
   'Ψ': '\\Psi', 'Ψₛ': '\\Psi_s', 'κ': '\\kappa', 'α': '\\alpha', 'β': '\\beta',
@@ -473,6 +474,7 @@ export function buildNotation(model) {
   return {
     posterior, terms, deterministic, constants, glossary,
     found: post.found,
+    dialect: model.meta?.dialect,
     latex: toLatex(posterior, terms, deterministic),
   };
 }
@@ -555,6 +557,7 @@ const esc = s => String(s).replace(/[&<>]/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
 export function renderNotation(note, el) {
+  const b2 = note.dialect === 'BEAST2';
   const stmt = (t, extra = '') => `
     <div class="row">
       <div class="stmt">
@@ -574,10 +577,16 @@ export function renderNotation(note, el) {
     <section>
       <h3><span class="chevron"></span>Posterior</h3>
       <div class="eq-wrap"><div class="eq">${esc(note.posterior.text)}</div></div>
-      <p class="note">Read from the <code>&lt;joint&gt;</code> block of the XML:
-        every factor below is one child of <code>&lt;prior&gt;</code> or
-        <code>&lt;likelihood&gt;</code>, so this is the density the sampler
-        actually targets.</p>
+      <p class="note">${b2
+        ? `Read from the <code>&lt;distribution id="posterior"&gt;</code> block
+           of the XML: every factor below is one child of its
+           <code>&lt;distribution id="prior"&gt;</code> or
+           <code>&lt;distribution id="likelihood"&gt;</code>, so this is the
+           density the sampler actually targets.`
+        : `Read from the <code>&lt;joint&gt;</code> block of the XML:
+           every factor below is one child of <code>&lt;prior&gt;</code> or
+           <code>&lt;likelihood&gt;</code>, so this is the density the sampler
+           actually targets.`}</p>
     </section>
 
     ${likelihood.length ? `<section>
