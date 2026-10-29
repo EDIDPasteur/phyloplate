@@ -73,6 +73,8 @@ const TREE_PRIOR_TAGS = new Set([
   'generalizedSkyLineLikelihood', 'piecewisePopulationModel', 'yuleModel',
   'birthDeathModel', 'birthDeathSerialSampling', 'speciationLikelihood',
   'coalescentLikelihood', 'multiSpeciesCoalescent', 'treeIntervals',
+  /* BDMM-Prime's birth-death-migration tree prior. */
+  'bdmmPrimeDistribution',
 ]);
 
 const SUBST_TAGS = new Set([
@@ -111,6 +113,9 @@ const FACTOR_TAGS = new Set([
   'gmrfSkyrideLikelihood', 'gmrfSkyGridLikelihood',
   'multivariateDistributionLikelihood', 'gradient', 'branchRateGradient',
   'jointGradient', 'hessian', 'compoundLikelihood', 'mixedDistributionLikelihood',
+  /* BDMM-Prime's birth-death-migration density: a factor in the
+   * posterior, like coalescentLikelihood. */
+  'bdmmPrimeDistribution',
 ]);
 
 // Inference machinery, not part of the generative model.
@@ -307,6 +312,24 @@ const SPEC_MAP = {
   UpDownOperator: 'upDownOperator', PopulationSizeScaler: 'scaleOperator',
   TipDatesRandomWalker: 'randomWalkOperator', BitFlipOperator: 'uniformOperator',
   JumpOperator: 'uniformOperator', SAMOperator: null,
+  /* Sampled-ancestor operators (sa package, used with BDMM-Prime). */
+  SAScaleOperator: 'scaleOperator', SAExchange: 'narrowExchange',
+  SAWilsonBalding: 'wilsonBalding', SAUniform: 'uniformOperator',
+  LeafToSampledAncestorJump: 'uniformOperator',
+  /* BEAUti2 bare distribution tags (no spec) resolve here via tagOf's
+   * no-spec fallback; BEAUti2 also writes wrappers bare (<prior x=…>). */
+  LogNormal: 'logNormalDistributionModel', Normal: 'normalPrior',
+  Exponential: 'exponentialPrior', Gamma: 'gammaPrior', Uniform: 'uniformPrior',
+  Beta: 'betaPrior', OneOnX: 'oneOnXPrior',
+  /* BDMM-Prime (v2.4.0): the tree prior is a factor; the prior wrappers
+   * behave like BEAUti2's <prior x=…>; OptionalLogger is output plumbing. */
+  ZeroExcludingPrior: 'prior', BirthDeathMigrationDistribution: 'bdmmPrimeDistribution',
+  OptionalLogger: 'logger',
+  /* feast helpers seen in BDMM-Prime scripts: the alignment is an
+   * observed-data view of a FASTA file; trees parsed from Newick are
+   * state trees; TreeParser is both that and the B2 initialiser. */
+  TreeParser: 'treeModel', FilteredAlignment: 'alignment',
+  AlignmentFromFasta: 'alignment',
   // statistics
   TreeHeightLogger: 'treeHeightStatistic', TreeHeightStatistic: 'treeHeightStatistic',
   TreeLengthStatistic: 'treeLengthStatistic', Monophyletic: 'monophylyStatistic',
@@ -495,14 +518,18 @@ function pickSubscript(id) {
   return null;
 }
 
-/** 1.0E5 -> 1e5, 0.3333333333 -> 0.333 */
+/** 1.0E5 -> 1e5, 0.3333333333 -> 0.333.  An @ref passes through as the
+ *  bare id (the referenced node carries the value); values in [1e3,1e4)
+ *  keep six digits — years like 2020.216 lose to toPrecision(3). */
 function compactNumber(v) {
+  const s = String(v);
+  if (s.startsWith('@')) return s.slice(1);
   const x = Number(v);
-  if (!Number.isFinite(x)) return String(v);
+  if (!Number.isFinite(x)) return s;
   if (x === 0) return '0';
   const a = Math.abs(x);
   if (a >= 1e4 || a < 1e-3) return x.toExponential(0).replace('e+', 'e');
-  return String(Number(x.toPrecision(3)));
+  return String(Number(x.toPrecision(a >= 1e3 ? 6 : 3)));
 }
 
 /* ---- BEAST2 plate expansion -----------------------------------------
@@ -650,31 +677,44 @@ export function parseBeastXML(text) {
     // wrapper, so the target idref is not a descendant of the
     // distribution.  Look at the wrapping <prior>'s <parameter idref>
     // children.
-    let targets = refsUnder(el)
-      .filter(r => byId.has(r) && PARAMETERISH.has(tagOf(byId.get(r))));
-    if (!targets.length && DIALECT === 2 && tagOf(el) === 'MRCAPrior') {
-      /* BEAST2 calibration: <distribution spec="MRCAPrior" …><taxonset>…
-       * <input name="tree" idref="Tree.t"/><distr>… — the target is the
-       * tree the calibration applies to. */
-      targets = refsUnder(el)
-        .filter(r => byId.has(r) && TREE_TAGS.has(tagOf(byId.get(r))));
-    }
-    if (!targets.length && DIALECT === 2) {
-      /* BEAST2 Prior form: the target sits either on the distribution
-       * itself (<distribution spec="OneOnX" x="@popSize"/>) or on the
-       * wrapping Prior (<distribution spec="Prior" x="@kappa"><distr>…
-       * </distribution>), as an @-attribute or a name="x" input. */
+    //
+    // BEAST2 resolves most-specific-first: the x input (@-attr on the
+    // distribution or wrapper, or a <input name="x"> child) names the
+    // TARGET; the distribution's own @-hyperparameters (LogNormal
+    // M="@ClockM" S="@ClockS") are conditioned-on arguments and must not
+    // become targets.  refsUnder is the fallback, not the first try —
+    // BDMM-Prime's <LogNormal M="@ClockM"> priors would otherwise attach
+    // to the hyperparameters instead of clockRate$(n).  Factor form
+    // (BEAST X) keeps refsUnder first: there the distribution genuinely
+    // holds no x.
+    let targets = [];
+    if (DIALECT === 2) {
       const from = e => (e.getAttribute('x') || '').replace(/^@/, '') ||
         [...e.children].find(c => isElement(c) &&
           c.getAttribute('name') === 'x')?.getAttribute('idref') || '';
       const wrap = el.parentElement || null;
       const xview = wrap && [...wrap.children].find(c => isElement(c) &&
         c.tagName === 'x') || null;
-      let xref = from(el) || (wrap ? from(wrap) : '') ||
+      const xref = from(el) || (wrap ? from(wrap) : '') ||
         (xview ? refsUnder(xview)[0] || '' : '');
       if (xref && byId.has(xref) && PARAMETERISH.has(tagOf(byId.get(xref)))) {
         targets.push(xref);
+      } else if (tagOf(el) === 'MRCAPrior') {
+        /* BEAST2 calibration: <distribution spec="MRCAPrior" …><taxonset>…
+         * <input name="tree" idref="Tree.t"/><distr>… — the target is the
+         * tree the calibration applies to. */
+        targets = refsUnder(el)
+          .filter(r => byId.has(r) && TREE_TAGS.has(tagOf(byId.get(r))));
+      } else if (xref && byId.has(xref) && TREE_TAGS.has(tagOf(byId.get(xref)))) {
+        targets.push(xref);
       }
+      if (!targets.length) {
+        targets = refsUnder(el)
+          .filter(r => byId.has(r) && PARAMETERISH.has(tagOf(byId.get(r))));
+      }
+    } else {
+      targets = refsUnder(el)
+        .filter(r => byId.has(r) && PARAMETERISH.has(tagOf(byId.get(r))));
     }
     if (!targets.length) {
       const parent = el.parentElement;
@@ -709,9 +749,12 @@ export function parseBeastXML(text) {
          * serializes dist+attrs, not these).  eid is the element's own
          * id (BEAUti2 ids are unique), specBare/densitySpecBare the
          * unqualified spec names for elements with no id, realTag the
-         * raw XML tag so the editor can find it in the text. */
+         * raw XML tag so the editor can find it in the text.  For a
+         * plate clone, eid is the TEMPLATE's unsubstituted id — the
+         * clone's expanded id does not exist in the raw text, and
+         * editing the template edits every instance. */
         ...(DIALECT === 2 ? {
-          eid: el.getAttribute('id') || null,
+          eid: (templateOf(el) || el).getAttribute('id') || null,
           realTag: el.tagName,
           specBare: (el.getAttribute('spec') || '').slice(
             (el.getAttribute('spec') || '').lastIndexOf('.') + 1) || null,
@@ -776,7 +819,11 @@ export function parseBeastXML(text) {
       priors: priorsOf.get(id) || [],
       operators: operatorsOf.get(id) || [],
       role: roleOf(el),
-      value: shortValue(attrs.value),
+      /* BEAST X also writes parameter values as element text
+       * (<parameter id="x" ...>2020.23</parameter>); fall back to that
+       * for parameters only — a <newick>'s text is not a display value. */
+      value: shortValue(attrs.value ?? (tag === 'parameter' && !el.children.length
+        ? (el.textContent || '').trim() || null : null)),
       dimension: attrs.dimension || null,
       xmlLine: null,
       el,
@@ -858,8 +905,14 @@ export function parseBeastXML(text) {
     const tn = nodes.get(target);
     if (!tn) continue;
     for (const pr of list) {
+      /* B2 MRCAPrior: skip the structural attrs (monophyletic, tree ref,
+       * tipsonly) and the height prior's bounds — the square shows the
+       * density's hyperparameters only. */
       const parts = Object.entries(pr.attrs)
-        .filter(([k, v]) => !['id', 'idref'].includes(k) &&
+        .filter(([k, v]) => !['id', 'idref', 'name', 'spec', 'mode'].includes(k) &&
+                            !(pr.dist === 'MRCAPrior' &&
+                              (k === 'monophyletic' || k === 'tree' || k === 'tipsonly' ||
+                               k === 'lower' || k === 'upper')) &&
                             !(k === 'offset' && Number(v) === 0));
       const id = `__hyper${hp++}`;
       const args = parts.map(([, v]) => compactNumber(v)).join(', ');
@@ -1301,6 +1354,9 @@ function refsUnder(el) {
  * (e.g. `meanInRealSpace`) are kept on top. */
 export function distAttrs(el) {
   const out = { ...attrsOf(el) };
+  /* B2's spec attr is the full Java class name — it names the kind, not a
+   * hyperparameter, and leaks into hyper-square labels and tooltips. */
+  delete out.spec;
   /* MRCAPrior: the height prior is a nested distribution (BEAST X
    * <logNormalPrior …>, BEAST2 <distr spec="…">) — flatten its
    * hyperparameters (mean/stdev/offset) onto the calibration record
@@ -1314,6 +1370,15 @@ export function distAttrs(el) {
         if (k !== 'spec' && k !== 'id' && out[k] == null) out[k] = v;
       }
       return out;
+    }
+    /* B2 calibrations can carry the height density as a named slot
+     * (<Uniform name="distr" lower= upper=/>): flatten its attrs too. */
+    const slot = [...el.children].find(c => isElement(c) &&
+      c.getAttribute('name') === 'distr');
+    if (slot) {
+      for (const [k, v] of Object.entries(distAttrs(slot))) {
+        if (k !== 'spec' && k !== 'id' && k !== 'name' && out[k] == null) out[k] = v;
+      }
     }
   }
   for (const slot of el.children) {
@@ -1842,6 +1907,10 @@ function buildLineTargets(doc, text) {
   for (const kind of logKinds) {
     let i = 0;
     for (const el of doc.getElementsByTagName(kind)) {
+      /* Plate clones have no row in the raw-text editor (the sidebar
+       * and the line targets both address the unexpanded <plate>);
+       * emitting rows here would desynchronise the log:kind:i keys. */
+      if (templateOf(el)) continue;
       if (!el.getAttribute('id') && el.getAttribute('idref')) continue;
       const r = rangeOf(el);
       if (!r) continue;

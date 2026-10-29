@@ -356,7 +356,11 @@ export class DiagramView {
       if (d.dimension) rows.push(['dimension', d.dimension]);
       if (d.priors?.length) {
         rows.push(['prior', d.priors.map(p => {
-          const a = Object.entries(p.attrs).filter(([k]) => !['id', 'idref'].includes(k))
+          const a = Object.entries(p.attrs)
+            .filter(([k]) => !['id', 'idref', 'spec', 'name'].includes(k) &&
+                             !(p.dist === 'MRCAPrior' &&
+                               (k === 'monophyletic' || k === 'tree' || k === 'tipsonly' ||
+                                k === 'lower' || k === 'upper')))
             .map(([k, v]) => `${k}=${v}`).join(', ');
           return a ? `${p.label}(${a})` : p.label;
         }).join('; ')]);

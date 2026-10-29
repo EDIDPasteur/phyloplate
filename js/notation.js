@@ -49,6 +49,7 @@ const FACTOR_NAME = {
   coalescentLikelihood: 'Coalescent', speciationLikelihood: 'Speciation',
   gmrfSkyrideLikelihood: 'Skyride', gmrfSkyGridLikelihood: 'SkyGrid',
   multivariateTraitLikelihood: 'MultivariateTrait',
+  bdmmPrimeDistribution: 'BDMM-Prime',
 };
 
 /* Where the algebra is the point rather than the component name, spell it
@@ -512,8 +513,11 @@ function texOf(label) {
 
 const escTex = s => String(s).replace(/([\\{}_$&%#^~])/g, '\\$1');
 
+/* Values print as written, but a BEAST2 @-ref stands in for the
+ * referenced parameter's value — print the bare id. */
 function compact(v) {
   if (v == null) return '';
+  if (String(v).startsWith('@')) return String(v).slice(1);
   const x = Number(v);
   if (!Number.isFinite(x)) return String(v);
   if (x === 0) return '0';

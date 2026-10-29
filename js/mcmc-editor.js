@@ -1238,11 +1238,14 @@ function readLogAttrs(doc) {
   const out = [];
   /* Presence check counts only top-level elements: a B2 file's nested
    * <log idref> children inside <logger> must not flip the kinds list
-   * to ['log','logTree'] (their parent logger is the row). */
+   * to ['log','logTree'] (their parent logger is the row).  Children of
+   * <plate> must not either — the plate body is a template whose clones
+   * the editor never sees, so a plate-nested <log idref> is not a row. */
   const topCount = tag =>
     [...doc.getElementsByTagName(tag)]
       .filter(el => el.parentElement &&
-        !['log', 'logTree', 'logger'].includes(el.parentElement.tagName.toLowerCase()))
+        !['log', 'logTree', 'logger', 'plate']
+          .includes(el.parentElement.tagName.toLowerCase()))
       .length;
   const logKinds = topCount('log') || topCount('logTree')
     ? ['log', 'logTree'] : ['logger'];
@@ -1252,6 +1255,10 @@ function readLogAttrs(doc) {
        * sit inside <logger>; the logger itself is the row. */
       if (logKinds.includes(specTagOf(el.parentElement.tagName,
                                 el.parentElement.getAttribute('spec')))) continue;
+      /* Skip plate templates (id contains "$(n)"): the template's
+       * expanded clones are what the model shows, and editing the
+       * template from here is out of scope for now. */
+      if ((el.getAttribute('id') || '').includes('$(n)')) continue;
       const row = { kind: tag };
       for (const a of el.attributes) row[a.name] = a.value;
       row.eid = el.getAttribute('id') || null;
