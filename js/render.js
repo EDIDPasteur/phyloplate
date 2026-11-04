@@ -2,10 +2,14 @@
  * Draw order: plates (back) -> module hulls -> edges -> nodes (front). */
 
 import { layout, collapseModules } from './layout.js';
+import { esc } from './extras.js';
 
 const R = 24;                 // node radius
-const MOD_R = 42;             // collapsed-module box half-width baseline
 const PLATE_PAD = 30;
+
+const ZOOM_MIN = 0.01;        // huge graphs still fit whole-screen
+const ZOOM_MAX = 40;          // hard cap for the zoom wheel
+const ZOOM_FLOOR = 4;         // small graphs: never zoom in past 4x
 
 const MODULE_LABEL = {
   tree: 'Tree', rateMatrix: 'Rate matrix', siteRates: 'Site rates',
@@ -36,7 +40,7 @@ export class DiagramView {
     this.gEdges = this.root.append('g').attr('class', 'edges');
     this.gNodes = this.root.append('g').attr('class', 'nodes');
 
-    this.zoom = d3.zoom().scaleExtent([0.2, 4])
+    this.zoom = d3.zoom().scaleExtent([ZOOM_MIN, ZOOM_MAX])
       .on('zoom', e => this.root.attr('transform', e.transform));
     this.svg.call(this.zoom);
   }
@@ -47,6 +51,9 @@ export class DiagramView {
     // A new model in an old pan/zoom would open off-screen.
     this.svg.call(this.zoom.transform, d3.zoomIdentity);
     this.draw();
+    // Scale the new graph to what fits the viewport rather than leaving it
+    // at 1:1, where a large model is a sliver and a small one is too big.
+    this.fitToView();
   }
 
   /** Search-time: dim everything but the matching nodes. */
@@ -71,29 +78,73 @@ export class DiagramView {
     this.svg.select('.zoom-root').selectAll('.node').classed('dim', false);
   }
 
-  /** Imperatively focus a node (hover-equivalent behaviour from outside). */
-  focusNode(id) {
-    if (!this.model) return;
-    const node = this.model.nodes.find(n => n.id === id);
-    if (!node) return;
-    const sel = this.svg.selectAll('.node').filter(d => d.id === id);
-    if (sel.empty()) return;
-    const ev = sel.node();
-    if (!ev) return;
-    const rect = ev.getBoundingClientRect();
-    // Build a real MouseEvent so the existing mouseenter handler runs.
-    const fakeEvent = new MouseEvent('mouseenter', {
-      bubbles: true,
-      clientX: rect.left + rect.width / 2,
-      clientY: rect.top + rect.height / 2,
-    });
-    ev.dispatchEvent(fakeEvent);
+  /** The bounding box of the nodes currently drawn, in layout coordinates. */
+  nodeBBox() {
+    const nodes = this.drawnNodes;
+    if (!nodes?.length) return null;
+    return nodes.reduce((acc, n) => {
+      const hw = halfW(n), hh = halfH(n);
+      acc.x0 = Math.min(acc.x0, n.x - hw);
+      acc.x1 = Math.max(acc.x1, n.x + hw);
+      acc.y0 = Math.min(acc.y0, n.y - hh);
+      acc.y1 = Math.max(acc.y1, n.y + hh);
+      // The id caption sits below the shape for circles and squares.
+      if (n.caption && n.caption !== n.label) {
+        acc.y1 = Math.max(acc.y1, n.y + hh + 26);
+      }
+      return acc;
+    }, { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity });
   }
 
-  /** Fit the graph into the viewport. */
+  /** The largest useful scale: a single node must never fill the viewport, so
+   *  the user can always see the surrounding graph.  Small graphs are
+   *  floored so the fit does not zoom in past 4x. */
+  maxScale() {
+    const nodes = this.drawnNodes;
+    if (!nodes?.length) return ZOOM_MAX;
+    const rect = this.svg.node().getBoundingClientRect();
+    const minNode = Math.min(...nodes.map(n => nodeW(n)));
+    return Math.max(ZOOM_FLOOR, rect.width / minNode);
+  }
+
+  /** The transform that fits the drawn graph into the viewport, or null when
+   *  there is nothing to fit. */
+  fitTransform() {
+    const bbox = this.nodeBBox();
+    if (!bbox) return null;
+    const vb = this.svg.attr('viewBox');
+    if (!vb) return null;
+    const [vX, vY, vW, vH] = vb.split(' ').map(Number);
+    if (vW <= 0 || vH <= 0) return null;
+    const rect = this.svg.node().getBoundingClientRect();
+    const vw = rect.width, vh = rect.height;
+    if (vw <= 0 || vh <= 0) return null;
+    const pad = 60;
+    const cw = bbox.x1 - bbox.x0, ch = bbox.y1 - bbox.y0;
+    if (cw <= 0 || ch <= 0) return null;
+    const scale = Math.min(
+      (vW * (vw - 2 * pad)) / (vw * cw),
+      (vH * (vh - 2 * pad)) / (vh * ch),
+      this.maxScale()
+    );
+    return d3.zoomIdentity
+      .translate(vX + (vW * pad) / vw - bbox.x0 * scale,
+                 vY + (vH * pad) / vh - bbox.y0 * scale)
+      .scale(scale);
+  }
+
+  /** Fit the graph into the viewport.  The scale is computed from the graph's
+   *  bounding box so every visible node is shown at once, instead of a fixed
+   *  scale where large models are a sliver and small ones too big:
+   *
+   *  scale = min(viewport / bbox, ...)  (clamped to the zoom extent)
+   *
+   *  The graph is centred with a padding around it, and the transform is
+   *  animated so panning and zooming stay where the user left them. */
   fitToView() {
-    if (!this.model) return false;
-    this.svg.transition().duration(250).call(this.zoom.transform, d3.zoomIdentity);
+    const t = this.fitTransform();
+    if (!t) return false;
+    this.svg.transition().duration(250).call(this.zoom.transform, t);
     return true;
   }
 
@@ -160,16 +211,14 @@ export class DiagramView {
       }
     }
 
-    // Circles are narrow but their id caption is not, so reserve room for it.
-    const widthOf = n => n.r
-      ? Math.max(n.r * 2, Math.min(132, n.caption ? textWidth(fit(n.caption, 26), CAP_FONT) : 0))
-      : n.w;
+    // Kept for the viewport fit: the node sizes are only final after this loop.
+    this.drawnNodes = nodes;
 
     const livePlates = (this.model.plates || [])
       .map(p => ({ ...p, members: p.members.filter(m => ids.has(m)) }))
       .filter(p => p.members.length >= 2 && !this.collapsed.size);
 
-    const dim = layout(nodes, edges, { widthOf, plates: livePlates });
+    const dim = layout(nodes, edges, { widthOf: nodeW, plates: livePlates });
     const byId = new Map(nodes.map(n => [n.id, n]));
 
     const pad = 80;
@@ -281,7 +330,7 @@ export class DiagramView {
       });
     };
 
-    const fitBox = (sel, memberIds, padding) => {
+    const fitBox = (memberIds, padding) => {
       const ms = memberIds.map(i => byId.get(i)).filter(Boolean);
       if (!ms.length) return null;
       const xs = ms.map(n => [n.x - halfW(n), n.x + halfW(n)]).flat();
@@ -295,7 +344,7 @@ export class DiagramView {
 
     const updatePlates = () => {
       plateSel.each(function (d) {
-        const b = fitBox(null, d.live, PLATE_PAD);
+        const b = fitBox(d.live, PLATE_PAD);
         const g = d3.select(this);
         if (!b) { g.attr('display', 'none'); return; }
         g.attr('display', null);
@@ -343,8 +392,6 @@ export class DiagramView {
             ? 'url(#arrow-hi)' : 'url(#arrow-dim)');
         nodeSel.classed('dim', n => n.id !== d.id && !touching.has(n.id));
         self.showTip(event, d);
-        // Notify other panes: source view can highlight this node's lines.
-        self.hoveredNode = d;
         self.onHover?.(d);
       })
       .on('mousemove', function (event) { self.moveTip(event); })
@@ -352,7 +399,6 @@ export class DiagramView {
         edgeSel.classed('hi', false).classed('dim', false).attr('marker-end', 'url(#arrow)');
         nodeSel.classed('dim', false);
         self.hideTip();
-        self.hoveredNode = null;
         self.onHover?.(null);
       })
       .on('click', function (event, d) {
@@ -366,7 +412,6 @@ export class DiagramView {
   // ---------------------------------------------------------------- tooltip
   showTip(event, d) {
     const rows = [];
-    const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
     if (d.type === 'module') {
       rows.push(['contains', `${d.memberCount} nodes`]);
@@ -379,7 +424,11 @@ export class DiagramView {
       if (d.dimension) rows.push(['dimension', d.dimension]);
       if (d.priors?.length) {
         rows.push(['prior', d.priors.map(p => {
-          const a = Object.entries(p.attrs).filter(([k]) => !['id', 'idref'].includes(k))
+          const a = Object.entries(p.attrs)
+            .filter(([k]) => !['id', 'idref', 'spec', 'name'].includes(k) &&
+                             !(p.dist === 'MRCAPrior' &&
+                               (k === 'monophyletic' || k === 'tree' || k === 'tipsonly' ||
+                                k === 'lower' || k === 'upper')))
             .map(([k, v]) => `${k}=${v}`).join(', ');
           return a ? `${p.label}(${a})` : p.label;
         }).join('; ')]);
@@ -413,10 +462,13 @@ export class DiagramView {
   /* Reset means "put the picture back how it was drawn", which is both the
    * pan/zoom and the layout: dragging mutates node positions in place, so
    * resetting only the transform leaves a rearranged graph sitting there and
-   * looks like the button did nothing. */
+   * looks like the button did nothing.  The fit scale is part of "as drawn"
+   * too, so a large model is not restored as a sliver. */
   resetView() {
     this.draw();
-    this.svg.transition().duration(300).call(this.zoom.transform, d3.zoomIdentity);
+    const t = this.fitTransform();
+    this.svg.transition().duration(300)
+      .call(this.zoom.transform, t || d3.zoomIdentity);
   }
 
   exportSVG() {
@@ -444,6 +496,12 @@ const TYPE_NAME = {
 
 const halfW = n => n.r ? n.r : n.w / 2;
 const halfH = n => n.r ? n.r : n.h / 2;
+
+/** Node width used for the viewport fit: circles are widest by their id
+ *  caption, which is centred below the shape. */
+const nodeW = n => n.r
+  ? Math.max(n.r * 2, Math.min(132, n.caption ? textWidth(fit(n.caption, 26), CAP_FONT) : 0))
+  : n.w;
 
 /** Point on the boundary of node n, in the direction of (tx,ty). */
 function boundary(n, tx, ty, extra = 0) {

@@ -205,7 +205,7 @@ header.bar .filename {
   border: 1px solid var(--bar-button-border);
   border-radius: 4px;
   background: var(--bar-button-bg);
-  max-width: 320px; overflow: hidden;
+  max-width: 560px; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap;
 }
 header.bar .filename[hidden] { display: none; }
@@ -220,6 +220,22 @@ header.bar button {
 }
 header.bar button:hover { background: var(--bar-bg-hover); }
 header.bar button:disabled { opacity: .4; cursor: default; }
+
+/* Notation-mode split toggle: two halves, the active one carrying the
+ * highlight so the user always sees which view is current. */
+#btn-notation-mode { display: flex; padding: 0; height: auto; line-height: normal; }
+#btn-notation-mode span {
+  flex: 1; text-align: center; padding: 6px 14px; font-size: 13px;
+  background: var(--bar-button-bg); color: var(--bar-fg);
+  border: 1px solid var(--bar-button-border);
+  transition: background .12s, color .12s;
+}
+#btn-notation-mode .split-left { border-radius: 4px 0 0 4px; border-right: none; }
+#btn-notation-mode .split-right { border-radius: 0 4px 4px 0; border-left: none; }
+#btn-notation-mode.worded .split-left,
+#btn-notation-mode.math .split-right {
+  background: var(--teal-500); color: white; border-color: var(--teal-500);
+}
 
 header.bar .theme-toggle {
   font-size: 14px; padding: 6px 8px; min-width: 32px;
@@ -435,7 +451,7 @@ aside h2.collapsible.collapsed + * { display: none; }
 }
 .notation-pane[hidden] { display: none; }
 
-.notation { max-width: 900px; margin: 0 auto; }
+.notation { max-width: none; margin: 0; }
 
 .notation section { margin-bottom: 36px; }
 .notation h3 {
@@ -472,7 +488,23 @@ aside h2.collapsible.collapsed + * { display: none; }
 }
 .eq {
   font-family: Georgia, "Times New Roman", serif; font-size: 16px;
-  line-height: 1.9; white-space: nowrap; color: var(--text);
+  line-height: 1.9; color: var(--text);
+  overflow-wrap: anywhere; word-break: break-word;
+}
+
+/* the exported LaTeX block */
+.notation-tex {
+  font-family: var(--mono);
+  white-space: pre-wrap;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--teal-500);
+  border-radius: 4px;
+  padding: 18px 20px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+  overflow-x: auto;
 }
 
 /* one distributional statement per row */
@@ -485,9 +517,9 @@ aside h2.collapsible.collapsed + * { display: none; }
 }
 .stmts .row { border-radius: 4px; }
 .stmts .row:nth-child(odd) { background: color-mix(in srgb, var(--teal-500) 5%, transparent); }
-.stmt .lhs { text-align: right; font-style: italic; color: var(--teal-900); }
+.stmt .lhs { text-align: right; font-style: italic; color: var(--teal-900); white-space: nowrap; }
 .stmt .op { text-align: center; color: var(--text-faint); font-style: normal; }
-.stmt .rhs { color: var(--text); }
+.stmt .rhs { color: var(--text); overflow-wrap: anywhere; word-break: break-word; }
 .stmt .rhs em { font-size: 12px; color: var(--text-faint); }
 .stmt .src {
   font-family: var(--mono); font-size: 10.5px; color: var(--text-faint);
@@ -652,13 +684,6 @@ dialog.modal::backdrop { background: var(--modal-backdrop); }
   font-family: var(--mono); font-size: 11px; color: var(--text-faint);
   min-width: 36px; text-align: right;
 }
-.search-row .clear-search {
-  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
-  font: inherit; font-size: 13px; line-height: 1;
-  background: none; border: 0; color: var(--text-faint);
-  cursor: pointer; padding: 4px 7px; border-radius: 3px;
-}
-.search-row .clear-search:hover { background: var(--surface-2); color: var(--text); }
 .search-row.hidden { display: none; }
 
 .match-hi {
@@ -703,6 +728,10 @@ table.audit-table td.audit-id {
 table.audit-table td.audit-detail {
   font-family: var(--mono); font-size: 11px; color: var(--text-mute);
   word-break: break-word;
+}
+table.audit-table td.audit-in {
+  font-family: var(--mono); font-size: 11px; color: var(--text-faint);
+  word-break: break-all;
 }
 table.audit-table tr.match-hi td {
   background: color-mix(in srgb, var(--orange) 16%, transparent);
@@ -774,6 +803,26 @@ table.audit-table tr:hover td {
   background: color-mix(in srgb, var(--orange) 18%, transparent);
 }
 .source-pane .source-body .src-line.dim { opacity: .55; }
+.source-pane .source-body .src-line.src-target { cursor: pointer; }
+.source-pane .source-body .src-line.src-target::before {
+  content: '\25B8';
+  display: inline-block;
+  width: 0; margin-left: -10px;
+  color: var(--teal-500);
+  opacity: 0;
+  transition: opacity .15s;
+}
+.source-pane .source-body .src-line.src-target:hover::before { opacity: 1; }
+.source-pane .source-body .src-line.flash {
+  background: color-mix(in srgb, var(--teal-500) 30%, transparent);
+  transition: background 1.5s ease-out;
+}
+.source-pane .source-body .src-line.src-find {
+  background: color-mix(in srgb, var(--orange) 12%, transparent);
+}
+.source-pane .source-body .src-line.src-find-cur {
+  background: color-mix(in srgb, var(--orange) 18%, transparent);
+}
 .source-pane .source-body .src-line .ln {
   text-align: right; padding-right: 12px;
   color: var(--text-faint); user-select: none;
@@ -781,6 +830,16 @@ table.audit-table tr:hover td {
 }
 .source-pane .source-body .src-line.hi .ln {
   color: var(--orange); font-weight: 600;
+}
+.source-pane .source-body .src-line.src-collapse {
+  cursor: pointer;
+}
+.source-pane .source-body .src-line.src-collapse .code {
+  color: var(--text-faint);
+  font-style: italic;
+}
+.source-pane .source-body .src-line.src-collapse:hover {
+  background: color-mix(in srgb, var(--teal-500) 12%, transparent);
 }
 .source-pane .source-body .src-line .code { padding-left: 12px; }
 .source-pane .source-body .src-line .code .tag { color: var(--teal-700); }
@@ -1140,16 +1199,11 @@ table.audit-table tr:hover td {
 }
 .aside-toggle { display: none; }
 
+@media (max-width: 1164px) {
+  header.bar .filename { max-width: 220px; }
+}
 @media (max-width: 700px) {
   header.bar h1 { font-size: 15px; }
   header.bar .sub { display: none; }
   header.bar .filename { max-width: 160px; }
-}
-
-/* kbd hints shown on focus for keyboard shortcuts */
-kbd.kbd {
-  font-family: var(--mono); font-size: 10.5px;
-  background: var(--surface-2); color: var(--text-mute);
-  padding: 1px 5px; border-radius: 3px;
-  border: 1px solid var(--line);
 }

@@ -129,6 +129,7 @@ export function layout(allNodes, allEdges, opts = {}) {
     evictFromPlates(gridNodes, plates, widthOf);
   }
   separate(gridNodes, widthOf, 26, false);
+  packPlates(gridNodes, plates, widthOf);
 
   // ---- park hyperparameters just above the variable they constrain
   const sats = new Map();
@@ -201,6 +202,67 @@ function evictFromPlates(nodes, plates, widthOf) {
       n.x += Math.abs(left) <= Math.abs(right) ? left - 12 : right + 12;
     }
   }
+}
+
+/** Pack the plates' member columns apart so wide plates do not overlap, and
+ *  keep the diagram centred rather than drifting right.  Called after the
+ *  settle loop, so the plate boxes are final:
+ *
+ *  1.  For each plate with >= 2 resolvable members, compute the box
+ *      [min(x - w/2) - PAD, max(x + w/2) + PAD] (PAD 30, like
+ *      evictFromPlates).
+ *  2.  If plate A's member set is a subset of plate B's, skip A — it sits
+ *      inside B's box and must not be shifted by the sweep.
+ *  3.  Sort the remaining plates by box.x0; sweep left -> right keeping a
+ *      cursor: if a plate's x0 < cursor + GAP (GAP 40), shift all its
+ *      members right by the deficit; set cursor = the plate's new x1.
+ *  4.  Recentre the union span around the pre-shift diagram centre, so the
+ *      diagram does not drift right.
+ *
+ *  Only member positions change — the plates' id/kind/label/members, which
+ *  the digest hashes, are untouched. */
+function packPlates(nodes, plates, widthOf) {
+  const PAD = 30;
+  const GAP = 40;
+  const boxes = [];
+  for (const plate of plates) {
+    const members = plate.members.map(id => nodes.find(n => n.id === id)).filter(Boolean);
+    if (members.length < 2) continue;
+    boxes.push({ plate, members,
+                 x0: Math.min(...members.map(n => n.x - widthOf(n) / 2)) - PAD,
+                 x1: Math.max(...members.map(n => n.x + widthOf(n) / 2)) + PAD });
+  }
+  if (boxes.length < 2) return;
+
+  // Containment: a plate whose members are a subset of another's sits
+  // inside the other's box and is not shifted by the sweep.
+  const skip = new Set();
+  for (let i = 0; i < boxes.length; i++)
+    for (let j = 0; j < boxes.length; j++)
+      if (i !== j && boxes[i].members.every(m => boxes[j].members.includes(m)))
+        skip.add(boxes[i].plate);
+
+  const ordered = [...boxes].sort((a, b) => a.x0 - b.x0);
+  let cursor = -Infinity;
+  for (const box of ordered) {
+    if (skip.has(box.plate)) continue;
+    if (box.x0 < cursor + GAP) {
+      const shift = cursor + GAP - box.x0;
+      for (const m of box.members) m.x += shift;
+      cursor = box.x1 + shift;
+    } else {
+      cursor = box.x1;
+    }
+  }
+
+  // Recentre the union span around the pre-shift diagram centre, so the
+  // diagram does not drift right.  Spread the growth to both sides.
+  const span = s => [Math.min(...s.map(n => n.x - widthOf(n) / 2)),
+                     Math.max(...s.map(n => n.x + widthOf(n) / 2))];
+  const [min0, max0] = span(nodes);
+  const [min1, max1] = span(nodes);
+  const grew = (max1 - min1) - (max0 - min0);
+  if (grew) for (const n of nodes) n.x -= grew / 2;
 }
 
 function groupBy(arr, key) {

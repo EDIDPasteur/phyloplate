@@ -6,6 +6,7 @@ import {
   diffModels, renderDiff, exportBN,
 } from './extras.js';
 import { McmcEditor, PriorDock } from './mcmc-editor.js';
+import { esc } from './extras.js';
 
 const $ = id => document.getElementById(id);
 
@@ -35,12 +36,13 @@ const aside = $('aside');
 
 const view = new DiagramView($('svg'), $('tooltip'));
 const source = new SourceView($('source'));
-const search = new Search(null, () => view, () => source);
+const search = new Search(null, () => view, source);
 
 let currentName = null;
 let currentModel = null;
 let currentText = null;
 let notation = null;
+let notationMath = false;
 let compareModel = null;
 
 // ----------------------------------------------------------------- theme
@@ -98,6 +100,7 @@ function load(text, name) {
   $('filename').hidden = false;
   $('filename').textContent = name;
   $('filename').title = name;
+  document.title = name + ' — PhyloPlate';
   for (const b of ['btn-expand', 'btn-collapse', 'btn-reset',
                     'btn-svg', 'btn-clear', 'btn-bn', 'btn-mcmc-export']) {
     $(b).disabled = false;
@@ -137,18 +140,31 @@ function load(text, name) {
   };
   view.setModel(model);
   source.setSource(text);
+  /* Click-to-jump on the source tab.  When the user clicks a line
+   * that maps to a prior, operator, <mcmc>, <log>, or <logTree>,
+   * the McmcEditor highlights and scrolls to the matching row.
+   * (The lineTarget is built by the parser; see parse-beast.js.) */
+  source.setLineTargets(model.lineTargets || null);
+  source.onLineTarget = (t) => {
+    /* Only jump if the source tab is active.  Otherwise the user is
+     * still on the diagram and the click is a no-op. */
+    if ($('source').hidden) return;
+    if (mcmcEditor) mcmcEditor.focusLineTarget(t);
+  };
 
   renderSidebar(model);
 
   try {
-    notation = buildNotation(model);
-    renderNotation(notation, $('notation'));
+    notation = buildNotation(model, { math: notationMath });
+    /* Reset to the worded view for each new model. */
+    notationMath = false;
+    setNotationMode(false);
   } catch (e) {
     notation = null;
     $('notation').innerHTML =
       '<div class="notation"><section><h3>Notation</h3>' +
       '<p class="note">Could not derive the notation for this model: ' +
-      String(e.message).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])) +
+      esc(String(e.message)) +
       '</p></section></div>';
     console.error('buildNotation failed', e);
   }
@@ -210,7 +226,7 @@ const SWATCH = {
 function renderSidebar(model) {
   const s = model.stats;
   const rows = [
-    ['BEAST', model.meta.version],
+    ['BEAST', `${model.meta.dialect ?? 'BEAST X'} ${model.meta.version}`],
     ['taxa', s.ntax ?? '—'],
     ['sites', s.nchar ?? '—'],
     ['chain', s.chainLength ? Number(s.chainLength).toLocaleString() : '—'],
@@ -387,7 +403,7 @@ window.addEventListener('paste', e => {
 
 $('btn-expand').addEventListener('click', () => view.expandAll());
 $('btn-collapse').addEventListener('click', () => view.collapseAll());
-$('btn-reset').addEventListener('click', () => flashButton('tb-fit', () => view.fitToView()));
+$('btn-reset').addEventListener('click', () => flashButton('tb-fit', () => view.resetView()));
 $('chk-modules').addEventListener('change', e => {
   view.setModules(e.target.checked);
   $('tb-modules').classList.toggle('active', e.target.checked);
@@ -446,24 +462,36 @@ for (const t of $('tabs').querySelectorAll('.tab')) {
   t.onclick = () => showTab(t.dataset.tab);
 }
 
-// LaTeX copy with light syntax colouring shown in the button feedback.
-$('btn-latex').onclick = async () => {
-  if (!notation) return;
-  const btn = $('btn-latex');
-  try {
-    await navigator.clipboard.writeText(notation.latex);
-    btn.textContent = 'Copied LaTeX';
-  } catch {
-    const blob = new Blob([notation.latex], { type: 'text/plain' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = (currentName || 'model').replace(/\.xml$/i, '') + '.tex';
-    a.click();
-    URL.revokeObjectURL(a.href);
-    btn.textContent = 'Downloaded';
+// Show the raw LaTeX source in the notation view.  There is no copy any more
+// — the user can select the text in the pre block themselves.
+$('btn-latex').onclick = () => {
+  notationMath = false;
+  $('btn-notation-mode').className = 'worded';
+  if (notation) {
+    $('notation').innerHTML = `
+    <div class="notation">
+      <section>
+        <h3>Model (LaTeX)</h3>
+        <pre class="notation-tex">${esc(notation.latex)}</pre>
+      </section>
+    </div>`;
   }
-  setTimeout(() => { btn.textContent = 'Copy LaTeX'; }, 1600);
 };
+
+// The notation-mode button is a split toggle: the left half shows the worded
+// notation, the right half shows the same notation with the distribution and
+// component names in their math glyphs (N, Γ, Exp, U, …).  Clicking flips the
+// active half between the two, and the colours flip with it.
+function setNotationMode(math) {
+  notationMath = math;
+  $('btn-notation-mode').className = math ? 'math' : 'worded';
+  if (currentModel) {
+    /* Rebuild so the lhs symbols and the rhs glyphs share the same mode. */
+    notation = buildNotation(currentModel, { math });
+    renderNotation(notation, $('notation'), { math });
+  }
+}
+$('btn-notation-mode').onclick = () => setNotationMode(!notationMath);
 
 // Compare: load a second XML and diff against currentModel.
 let compareFileInput = null;
@@ -504,6 +532,7 @@ $('btn-clear').onclick = () => {
   $('toolbar').hidden = true;
   $('search-row').hidden = true;
   $('filename').hidden = true;
+  document.title = 'PhyloPlate — BEAST X model viewer';
   $('tab-compare').hidden = true;
   $('file').value = '';
   currentModel = null;
@@ -529,34 +558,21 @@ $('btn-clear').onclick = () => {
 // ----------------------------------------------------------------- toolbar
 
 function wireToolbar() {
-  const tb = $('toolbar');
-  if (!tb) return;
-  // Use addEventListener so future re-renders don't drop handlers.  We also
-  // re-attach on every call to wireToolbar so the handlers always exist for
-  // the current toolbar (which lives in the canvas-toolbar element).
-  const fit = $('tb-fit');
-  const zi  = $('tb-zoom-in');
-  const zo  = $('tb-zoom-out');
-  const sr  = $('tb-search');
-  const tm  = $('tb-modules');
-  const tg  = $('tb-machinery');
   const guarded = (label, fn) => () => {
     const ok = fn();
     if (ok === false) statusFlash(label + ': no model loaded');
     return ok;
   };
-  if (fit) fit.addEventListener('click', () => flashButton('tb-fit', guarded('Fit', () => view.fitToView())));
-  if (zi)  zi.addEventListener('click', () => flashButton('tb-zoom-in', guarded('Zoom in', () => view.zoomBy(1.25))));
-  if (zo)  zo.addEventListener('click', () => flashButton('tb-zoom-out', guarded('Zoom out', () => view.zoomBy(0.8))));
-  if (sr)  sr.addEventListener('click', () => $('search').focus());
-  if (tm)  tm.addEventListener('click', () => {
-    const c = $('chk-modules'); c.checked = !c.checked;
-    c.dispatchEvent(new Event('change'));
-  });
-  if (tg)  tg.addEventListener('click', () => {
-    const c = $('chk-machinery'); c.checked = !c.checked;
-    c.dispatchEvent(new Event('change'));
-  });
+  const tbToggle = id => {
+    const c = $(id); c.checked = !c.checked; c.dispatchEvent(new Event('change'));
+  };
+  /* The toolbar buttons are static HTML, so wire them once. */
+  $('tb-fit').addEventListener('click', () => flashButton('tb-fit', guarded('Fit', () => view.fitToView())));
+  $('tb-zoom-in').addEventListener('click', () => flashButton('tb-zoom-in', guarded('Zoom in', () => view.zoomBy(1.25))));
+  $('tb-zoom-out').addEventListener('click', () => flashButton('tb-zoom-out', guarded('Zoom out', () => view.zoomBy(0.8))));
+  $('tb-search').addEventListener('click', () => $('search').focus());
+  $('tb-modules').addEventListener('click', () => tbToggle('chk-modules'));
+  $('tb-machinery').addEventListener('click', () => tbToggle('chk-machinery'));
 }
 wireToolbar();
 
@@ -578,6 +594,7 @@ $('search').onkeydown = e => {
     if (legendLockType) view.highlightByType(legendLockType);
   }
 };
+
 /* Esc anywhere else clears any locked legend filter too. */
 window.addEventListener('keydown', e => {
   if (e.key === 'Escape' && legendLockType) {
@@ -626,7 +643,6 @@ function handleKey(e) {
   let handler = null;
   switch (e.key) {
     case 'f': case 'F':
-    case 'r': case 'R':
       handler = () => { flashButton('tb-fit', () => view.fitToView()); };
       break;
     case '+': case '=':
@@ -707,7 +723,8 @@ function openPriorDock(node, target) {
     .find(n => n.id === target.targetId)?.priors || [];
   const match = priors.find(p => p.dist === target.dist) || priors[0];
   if (!match) return;
-  /* Build a stable entry identical to what the old editor used. */
+  /* Build a stable entry identical to what the old editor used.  eid/
+   * realTag carry the B2 matcher aids (null on BEAST X). */
   const entry = {
     key: `pri-${target.targetId}-${match.dist}-0`,
     dist: match.dist,
@@ -715,6 +732,8 @@ function openPriorDock(node, target) {
     attrs: match.attrs,
     index: 0,
     label: match.label || target.targetId,
+    eid: match.eid || null,
+    realTag: match.realTag || null,
   };
   priorDock.open(currentModel, currentText, entry);
   showTab('diagram');
@@ -758,9 +777,13 @@ function applyEdits(xml, parseError, stayOnDock) {
     currentModel = model;
     search.model = model;
     view.setModel(model);
+    /* Refresh the click-to-jump line targets so the source view picks
+     * up the edited XML's priors / operators.  The handler is wired
+     * in load() and doesn't need to be re-set. */
+    source.setLineTargets(model.lineTargets || null);
     try {
-      notation = buildNotation(model);
-      renderNotation(notation, $('notation'));
+      notation = buildNotation(model, { math: notationMath });
+      renderNotation(notation, $('notation'), { math: notationMath });
     } catch { notation = null; }
     renderSidebar(model);
     /* Sync the live editors with the new model so subsequent commits use

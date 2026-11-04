@@ -2,7 +2,7 @@
 
 # PhyloPlate
 
-**[Open the app →](https://sebastianduchene.github.io/phyloplate/)**
+**[Open the app →](https://edidpasteur.github.io/phyloplate/)**
 
 <br clear="left">
 
@@ -50,6 +50,11 @@ edges. Scroll to zoom, drag the background to pan, and **Reset view** puts the
 picture back as it was drawn — restoring the computed layout, so it undoes
 dragging as well as the pan and zoom.
 
+On load, and again at **Reset view**, the graph is scaled to fit the viewport:
+the scale is computed from the graph's bounding box, so a large model is not
+a sliver and a small one is not too big, and the zoom cap adapts so a single
+node never fills the screen.
+
 **Collapse modules** gives the high-level modular view of Fig. 8a of the
 paper — Tree, Rate matrix, Site rates, Branch rates, PhyloCTMC — with each box
 expandable on click.
@@ -80,8 +85,12 @@ form is spelled out and guarded by the attributes that imply it; for example
 rⱼ = ( Σₖ βₖ zⱼₖ ) · exp(εⱼ)
 ```
 
-**Copy LaTeX** puts the whole thing on the clipboard as an `equation` plus an
-`align` block, ready to paste into a manuscript.
+**LaTeX View** shows the whole thing as raw LaTeX source in a `pre` block, so
+you can select and paste it into a manuscript. The **Worded | Math** toggle
+flips the notation view between the worded notation and the same notation with
+the distribution and component names in their math glyphs — `N(0, σ²)`,
+`Γ(shape = 0.05, scale = 10)`, `Exp`, `U`, `LogN`, `Lap` — while the worded
+view keeps the full names, and the button's colours flip with it.
 
 ![The notation view](docs/img/notation.png)
 
@@ -100,8 +109,10 @@ each. Click a row to focus the node and jump to its source line.
 
 ## Searching
 
-Type into the sidebar search box to filter the diagram to nodes whose id, tag,
-or symbol matches. Press `Enter` to cycle matches; `Escape` to clear.
+Type into the sidebar search box to find nodes — matching nodes are focused
+in the diagram and their source lines highlighted, and matching source lines
+are highlighted in the **Source** tab. Press `Enter` to cycle through all
+matches (nodes and source lines); `Escape` to clear.
 
 ## Comparing two models
 
@@ -136,7 +147,9 @@ cd phyloplate
 ```
 
 `serve.sh` picks the next free port if 8000 is taken and prints the URL to
-open. Append `?demo=1` to go straight to an example.
+open. Append `?demo=1` to go straight to an example. Send `Ctrl-C` (or kill
+the script) to stop the server — the script `exec`s the server, so the server
+process *is* the script and dies with it, however it was launched.
 
 **A server is required.** The app is written as ES modules, which browsers
 refuse to load over `file://` — double-clicking `index.html` runs none of the
@@ -215,10 +228,10 @@ but dropping the second plate and the edges.
 
 ## Scope and limitations
 
-- **BEAST X / BEAST 1.x only** — the dialect BEAUti v10 emits, with elements
-  such as `<treeModel>` and `<treeDataLikelihood>`. BEAST2 files use the same
-  `<beast>` root but a `spec="…"` attribute style; they are detected and
-  rejected with a message rather than drawn as an empty graph.
+- **BEAST X / BEAST 1.x and BEAST 2** — the BEAUti v10 dialect (elements such
+  as `<treeModel>` and `<treeDataLikelihood>`) and the BEAST 2
+  `spec="…"` attribute style. BEAST 2 coverage follows the common `spec`
+  names; unknown add-on classes draw with generic labels.
 - The layout is heuristic. Large models draw correctly but may need dragging
   before they are presentable.
 - The algebraic forms cover a handful of common clock and substitution

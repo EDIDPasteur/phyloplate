@@ -22,10 +22,8 @@
  * lives in the dock so it sits next to its own edit form.
  */
 
-const PRIOR_KINDS = [
-  'logNormal', 'exponential', 'normal', 'gamma', 'uniform', 'beta',
-  'oneOnX', 'ctmcScale', 'laplace',
-];
+import { esc } from './extras.js';
+import { specTagOf } from './parse-beast.js';
 
 const PRIOR_INFO = {
   logNormal: {
@@ -46,6 +44,17 @@ const PRIOR_INFO = {
           'var = \u03B1\u00B7\u03B8\u00B2.  An offset shifts the support to ' +
           'x \u2265 offset.',
   },
+  expGamma: {
+    label: 'ExpGamma',
+    text: 'Distribution of exp(X) where X ~ Gamma(\u03B1, \u03B8).  Strictly ' +
+          'positive; mean = exp(\u03B1\u03B8 + \u03B8\u00B2/2) (real space).  ' +
+          'Used for log-scale rates where the prior on ln r is Gamma \u2014 ' +
+          'so r = exp(ln r) is ExpGamma.  An offset shifts the support to ' +
+          'x \u2265 offset.',
+  },
+  /* BEAST X spells the inverse-gamma prior `inverseGammaPrior` /
+   * `inverseGammaDistributionModel`; older BEAST 1 code uses `invgamma` /
+   * `invGamma`.  All three spellings share one info entry. */
   invgamma: {
     label: 'Inverse gamma',
     text: 'Inverse-gamma prior.  Convention: BEAST X stores shape \u03B1 ' +
@@ -93,7 +102,38 @@ const PRIOR_INFO = {
           'invariant to rate \u00D7 time rescalings.  Added by BEAST X ' +
           'automatically; the user does not pick a shape for this one.',
   },
+  halfNormal: {
+    label: 'Half-normal',
+    text: 'Normal distribution folded to x \u2265 0.  Strictly positive; ' +
+          'stdev sets the scale.  Use for scale parameters that cannot be ' +
+          'negative.',
+  },
+  halfCauchy: {
+    label: 'Half-Cauchy',
+    text: 'Cauchy distribution folded to x \u2265 0.  Heavier-tailed than ' +
+          'half-normal; median equals scale.',
+  },
+  halfT: {
+    label: 'Half-t',
+    text: 't distribution folded to x \u2265 0.  Heavier-tailed than ' +
+          'half-normal; degrees of freedom set the tail weight.',
+  },
+  dirichlet: {
+    label: 'Dirichlet',
+    text: 'Multivariate generalisation of the beta.  alpha sets the ' +
+          'concentration; sumsTo sets the simplex total (default 1.0).  ' +
+          'Used for GTR exchangeability rates.',
+  },
+  MRCA: {
+    label: 'MRCA (calibration)',
+    text: 'Constrains the most recent common ancestor of the listed taxa.  ' +
+          'monophyletic="true" clades the taxa into a clade.  When the ' +
+          'calibration has a tip-date or distribution form, M and S are ' +
+          'the mean and stdev of the height distribution (logNormal by ' +
+          'default); with a hard bounds form only monophyletic applies.',
+  },
 };
+PRIOR_INFO.inverseGamma = PRIOR_INFO.invGamma = PRIOR_INFO.invgamma;
 
 /* -------------------------------------------------------------- PDF plotting */
 
@@ -107,9 +147,22 @@ const lnpdf = (x, mu, sigma) =>
 const exppdf = (x, mean) => x < 0 ? 0 : Math.exp(-x / mean) / mean;
 const gammapdf = (x, k, theta) => x <= 0 ? 0 :
   Math.exp((k - 1) * Math.log(x) - x / theta - lgamma(k) - k * Math.log(theta));
+/* Distribution of exp(X) where X ~ Gamma(k, theta).  Change of
+ * variable gives f(y) = (1/y) gammapdf(log y, k, theta) for y > 0.
+ * BEAST X uses this for the background rate in mixed-effects
+ * log-scale clocks, so the prior on ln r is Gamma and r = exp(ln r)
+ * is ExpGamma. */
+const expgammapdf = (x, k, theta) => x <= 0 ? 0 :
+  Math.exp((k - 1) * Math.log(x) - x / theta - lgamma(k) - k * Math.log(theta)
+           - Math.log(x));
+/* Inverse-gamma density: BEAST X stores shape (alpha) and scale
+ * (beta) so the mean = beta / (alpha - 1) for alpha > 1. */
+const invgammapdf = (x, a, b) => x <= 0 ? 0 :
+  Math.exp(-a * Math.log(x) - b / x - lgamma(a) + a * Math.log(b)) / x;
 const normalpdf = (x, mu, sigma) =>
   Math.exp(-((x - mu) ** 2) / (2 * sigma * sigma)) / (sigma * SQRT_2PI);
 const laplacepdf = (x, mu, b) => Math.exp(-Math.abs(x - mu) / b) / (2 * b);
+const cauchypdf = (x, mu, s) => 1 / (Math.PI * s * (1 + ((x - mu) / s) ** 2));
 const betapdf = (x, a, b) => x <= 0 || x >= 1 ? 0 :
   Math.exp((a - 1) * Math.log(x) + (b - 1) * Math.log(1 - x)
            - lgamma(a) - lgamma(b) + lgamma(a + b));
@@ -160,6 +213,12 @@ function samplePrior(p, N = 200) {
   let xs, ys, xLabel = 'x', logScale = false;
   let offsetAt = null;
 
+  if (p.kind === 'MRCA') {
+    /* A calibration with a height distribution previews as its logNormal
+     * density (BEAST X <MRCAPrior> defaults).  Without M/S the row shows
+     * the placeholder curve; monophyletic-only forms need no density. */
+    p = { ...p, kind: 'logNormal' };
+  }
   if (p.kind === 'logNormal') {
     /* BEAST X's logNormalPrior uses two conventions for `mean` and `stdev`,
      * selected by `meanInRealSpace`.  When false (the BEAST default),
@@ -211,6 +270,41 @@ function samplePrior(p, N = 200) {
     logScale = k < 1 || xMax / Math.max(lo, 1e-5) > 5;
     xLabel = 'x';
     offsetAt = lo;
+  } else if (p.kind === 'expGamma') {
+    /* Distribution of exp(X) with X ~ Gamma(k, theta).  Strictly positive;
+     * median sits at e^{k*theta} (modest k, theta), so we plot out to a few
+     * multiples of the median.  log-scale x when the range covers more
+     * than a factor of 5, matching the gamma preview. */
+    const k  = (isFinite(shape) && shape > 0) ? shape
+              : (isFinite(mu) && mu > 0) ? mu : 1;
+    const th = (isFinite(scale) && scale > 0) ? scale
+              : (isFinite(sigma) && sigma > 0) ? sigma : 1;
+    const lo = isFinite(offset) ? offset : 0;
+    /* Median of expGamma is exp(k*theta - theta^2/2 + ...) in real space;
+     * use a conservative span to capture the right tail. */
+    const medianEst = Math.exp(k * th);
+    const xMin = Math.max(1e-12, lo + medianEst * 1e-4);
+    const xMax = Math.max(xMin * 10, lo + medianEst * 30);
+    xs = logspace(xMin, xMax, N);
+    ys = xs.map(x => expgammapdf(x - lo, k, th));
+    logScale = true;
+    xLabel = 'x';
+    offsetAt = lo;
+  } else if (p.kind === 'invgamma' || p.kind === 'inverseGamma' || p.kind === 'invGamma') {
+    /* BEAST X inverseGamma: shape (alpha), scale (beta) so mean = beta/(alpha-1).
+     * Three accepted spellings — see the alias block in PRIOR_INFO. */
+    const a  = (isFinite(shape) && shape > 0) ? shape
+              : (isFinite(mu) && mu > 0) ? mu : 3;
+    const b  = (isFinite(scale) && scale > 0) ? scale
+              : (isFinite(sigma) && sigma > 0) ? sigma : 1;
+    const lo = isFinite(offset) ? offset : 0;
+    const xMax = Math.max(lo + 1, a > 1 ? lo + 10 * b / (a - 1)
+                                       : lo + 10 * b);
+    xs = logspace(Math.max(1e-9, lo), xMax, N);
+    ys = xs.map(x => invgammapdf(x - lo, a, b));
+    logScale = true;
+    xLabel = 'x';
+    offsetAt = lo;
   } else if (p.kind === 'normal') {
     const m = isFinite(mu) ? mu : 0;
     const s = (isFinite(sigma) && sigma > 0) ? sigma : 1;
@@ -229,6 +323,71 @@ function samplePrior(p, N = 200) {
     logScale = false;
     xLabel = 'x';
     offsetAt = isFinite(offset) ? offset : null;
+  } else if (p.kind === 'cauchy') {
+    const m = isFinite(mu) ? mu : 0;
+    const s = (isFinite(sigma) && sigma > 0) ? sigma : 1;
+    const xMin = m - 30 * s, xMax = m + 30 * s;
+    xs = linspace(xMin, xMax, N);
+    ys = xs.map(x => cauchypdf(x, m, s));
+    logScale = false;
+    xLabel = 'x';
+    offsetAt = isFinite(offset) ? offset : null;
+  } else if (p.kind === 'halfNormal') {
+    const s = (isFinite(sigma) && sigma > 0) ? sigma
+            : (isFinite(scale) && scale > 0) ? scale : 1;
+    const lo = Math.max(0, isFinite(offset) ? offset : 0);
+    const xMax = lo + 4 * s;
+    xs = linspace(lo, xMax, N);
+    ys = xs.map(x => x <= lo ? 0 : 2 * normalpdf(x - lo, 0, s));
+    logScale = false;
+    xLabel = 'x';
+    offsetAt = lo > 0 ? lo : null;
+  } else if (p.kind === 'halfCauchy') {
+    const s = (isFinite(sigma) && sigma > 0) ? sigma
+            : (isFinite(scale) && scale > 0) ? scale : 1;
+    const lo = Math.max(0, isFinite(offset) ? offset : 0);
+    const xMax = lo + 30 * s;
+    xs = linspace(lo, xMax, N);
+    ys = xs.map(x => x <= lo ? 0 : 2 * cauchypdf(x - lo, 0, s));
+    logScale = xMax / Math.max(lo, 1e-3) > 5;
+    xLabel = 'x';
+    offsetAt = lo > 0 ? lo : null;
+  } else if (p.kind === 'halfT') {
+    /* Half-t has no simple closed form; use the folded-t approximation
+     * by integrating the t density.  We just plot the upper tail at
+     * a few sigma so the user can see the shape. */
+    const s = (isFinite(sigma) && sigma > 0) ? sigma
+            : (isFinite(scale) && scale > 0) ? scale : 1;
+    const df = (isFinite(shape) && shape > 0) ? shape : 4;
+    const lo = Math.max(0, isFinite(offset) ? offset : 0);
+    const xMax = lo + 8 * s;
+    xs = linspace(lo, xMax, N);
+    /* 2 * Student-t(x/s, df) / s — the standard t density folded. */
+    const tpdf = (x, v) => {
+      const c = lgamma((v + 1) / 2) - lgamma(v / 2);
+      return Math.exp(c - 0.5 * Math.log(v * Math.PI)
+                      - ((v + 1) / 2) * Math.log(1 + (x * x) / v));
+    };
+    ys = xs.map(x => x <= lo ? 0 : 2 * tpdf((x - lo) / s, df) / s);
+    logScale = false;
+    xLabel = 'x';
+    offsetAt = lo > 0 ? lo : null;
+  } else if (p.kind === 'dirichlet') {
+    /* Dirichlet is multivariate; just show a placeholder "see
+     * frequencies" marker so the sidebar isn't empty. */
+    xs = [0, 1]; ys = [1, 1];
+    xLabel = '(multivariate; see attribute)';
+  } else if (p.kind === 'poisson') {
+    /* Discrete count distribution; render bars as a step plot on a
+     * small range of integers around the mean. */
+    const lambda = (isFinite(mu) && mu > 0) ? mu
+                 : (isFinite(scale) && scale > 0) ? scale : 1;
+    const k = Math.max(10, Math.ceil(lambda * 4));
+    xs = Array.from({ length: k + 1 }, (_, i) => i);
+    const lgammaK = lgamma(lambda);
+    ys = xs.map(i => Math.exp(i * Math.log(lambda) - lambda - lgammaK));
+    xLabel = 'k';
+    logScale = false;
   } else if (p.kind === 'uniform') {
     const a = isFinite(lo) ? lo : 0;
     const b = isFinite(hi) ? hi : Math.max(a + 1, 1);
@@ -428,26 +587,36 @@ export function priorPdfSvg(p, opts = {}) {
  * it preserves everything the user did not touch. */
 
 function buildElementIndex(text) {
-  const re = /<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<(!\w[\s\S]*?|[A-Za-z_][\w.:-]*)([^>]*?)(\/?)>/g;
+  /* Comments, PIs, closing tags (with the element's depth), and opening
+   * tags.  The depth column is what siblingIdref/enclosingElement walk.
+   * The tag column is NORMALISED: BEAST2 spec="pkg.Class" collapses onto
+   * the BEAST X vocabulary via specTagOf, so one matcher stack serves
+   * both dialects.  BEAST1 files carry no spec attrs, so normalisation
+   * is the identity there. */
+  const re = /<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<\s*\/\s*([A-Za-z_][\w.:-]*)\s*>|<(!\w[\s\S]*?|[A-Za-z_][\w.:-]*)([^>]*?)(\/?)>/g;
   const out = [];
   let depth = 0;
   let m;
   while ((m = re.exec(text)) !== null) {
     const full = m[0];
     if (full.startsWith('<!--') || full.startsWith('<?')) continue;
-    const tag = m[1];
-    const attrStr = m[2];
-    const selfClose = m[3] === '/';
-    const start = m.index;
-    const end = m.index + full.length;
-    const attrs = parseAttrs(attrStr);
-    const isClose = tag.startsWith('/');
-    const tagName = isClose ? tag.slice(1) : tag;
+    if (m[1] !== undefined) {
+      /* Closing tag: carries the same depth as the element it closes.
+       * rawTag kept: B2 closes have no spec attr (`</distr>` closes a
+       * `<distr spec="…Exponential">`), so close-vs-open matching must
+       * compare raw names. */
+      out.push({ tag: specTagOf(m[1], null), rawTag: m[1], attrs: {}, start: m.index, end: m.index + full.length,
+                 depth: depth - 1, isClose: true, selfClose: false });
+      depth--;
+      continue;
+    }
+    const attrs = parseAttrs(m[3]);
+    const selfClose = m[4] === '/';
     out.push({
-      tag: tagName, attrs, start, end, depth, isClose, selfClose,
+      tag: specTagOf(m[2], attrs.spec), rawTag: m[2], attrs, start: m.index, end: m.index + full.length,
+      depth, isClose: false, selfClose,
     });
-    if (isClose) depth--;
-    else if (!selfClose) depth++;
+    if (!selfClose) depth++;
   }
   return out;
 }
@@ -465,15 +634,24 @@ function serializeAttrs(attrs) {
   return keys.map(k => `${k}="${(attrs[k] || '').replace(/"/g, '&quot;')}"`).join(' ');
 }
 
-function findElementByTagAndRef(text, tagName, targetId, i) {
+export function findElementByTagAndRef(text, tagName, targetId, i, eid = null) {
   const idx = buildElementIndex(text);
+  /* eid-first: BEAUti2 ids are unique, so when the caller knows the
+   * element's id we match it directly (the ref may not appear inside
+   * the element at all — targets sit on sibling/wrapper inputs). */
+  if (eid) {
+    const e = idx.find(e => !e.isClose && e.tag === tagName && e.attrs.id === eid);
+    if (e) return { ...e, idx };
+    /* Fall through to ref matching when the id can't be located. */
+  }
   let n = 0;
-  for (const e of idx) {
-    if (e.isClose) continue;
-    if (e.tag !== tagName) continue;
-    if (targetId !== null && !elementReferencesId(e, text, targetId)) continue;
-    if (n === i) return { ...e, idx };
-    n++;
+  for (let k = 0; k < idx.length; k++) {
+    const e = idx[k];
+    if (e.isClose || e.tag !== tagName) continue;
+    if (elementReferencesId(e, text, targetId) || siblingIdref(idx, k, targetId)) {
+      if (n === i) return { ...e, idx };
+      n++;
+    }
   }
   return null;
 }
@@ -501,8 +679,29 @@ export function findElementLine(text, tagName, targetId, i) {
 }
 
 function elementReferencesId(elEntry, text, targetId) {
+  /* No target to match — the caller is anchoring on the eid alone
+   * (mcmc/log rows).  Treat as "matches anything". */
+  if (targetId == null) return true;
+  /* A self-closing element has no body; scanning onwards from it would
+   * run into some LATER element's closing tag and falsely match an idref
+   * that belongs to a different component.  But its own attributes still
+   * can reference the target (BEAST2: parameter="@gammaShape"). */
+  if (elEntry.selfClose) {
+    for (const v of Object.values(elEntry.attrs))
+      if (v === '@' + targetId) return true;
+    return false;
+  }
   const bodyStart = elEntry.end;
-  const closeRe = new RegExp(`</\\s*${elEntry.tag}\\s*>`, 'g');
+  /* Own attributes can also reference the target even for elements
+   * WITH a body (BEAST2 operators carry parameter="@x" on the open
+   * tag alongside child elements). */
+  for (const v of Object.values(elEntry.attrs))
+    if (v === '@' + targetId) return true;
+  /* Close-tag scanning uses the RAW tag: BEAST2 elements open
+   * `<distr spec="…LogNormalDistributionModel">` and close `</distr>`,
+   * so a regex built from the normalised name never matches and the
+   * "body" would run to end-of-file. */
+  const closeRe = new RegExp(`</\\s*${elEntry.rawTag || elEntry.tag}\\s*>`, 'g');
   closeRe.lastIndex = bodyStart;
   const closeMatch = closeRe.exec(text);
   const bodyEnd = closeMatch ? closeMatch.index : text.length;
@@ -513,45 +712,257 @@ function elementReferencesId(elEntry, text, targetId) {
     const v = m[2] !== undefined ? m[2] : m[3];
     if (v === targetId) return true;
   }
+  /* BEAST2 attribute references: value="@someId" anywhere in the body. */
+  const reAt = /=\s*"@([^"]*)"/g;
+  while ((m = reAt.exec(body)) !== null) {
+    if (m[1] === targetId) return true;
+  }
   return false;
 }
 
-export function setAttrOnElement(text, tagName, targetId, i, attrName, attrValue) {
-  const found = findElementByTagAndRef(text, tagName, targetId, i);
+/* Factor form, BEAST X layouts:
+ *  <prior><dist/><parameter idref="x"/></prior> — the target is the idref-
+ *  carrying <parameter> sibling that follows the distribution (before the
+ *  next sibling distribution, so one wrapper may hold several prior-pairs).
+ *  <distributionLikelihood><data><parameter idref="x"/></data>
+ *    <distribution><distModel/></distribution></distributionLikelihood> —
+ *  the target is any idref inside the sibling <data> block, on either side
+ *  of the <distribution>.
+ * BEAST 2 layouts:
+ *  <distribution spec="Prior" x="@t"><distr/><parameter name="x" idref="t"/>
+ *    </distribution> — the wrapper carries the target as an @-attr or a
+ *  name="x" child; the <distr> is the density element.
+ *  <distribution spec="MRCAPrior"><taxonset/><input name="tree" idref="Tree.t"/>
+ *    <distr/></distribution> — the calibration targets the tree input. */
+function siblingIdref(idx, k, targetId) {
+  if (targetId == null) return false;
+  const pi = enclosingElement(idx, k);
+  if (pi < 0) return false;
+  const parent = idx[pi];
+  if (parent.selfClose) return false;
+  if (parent.tag === 'prior') {
+    const isDistModel = t => t.endsWith('Prior') || t.endsWith('DistributionModel');
+    /* The wrapper's own attributes can carry the target (x="@t"), as
+     * in BEAUti2 Prior wrappers. */
+    if (Object.values(parent.attrs).some(v => v === '@' + targetId)) return true;
+    for (let j = k + 1; j < idx.length; j++) {
+      const s = idx[j];
+      if (s.isClose && s.tag === parent.tag && s.depth === parent.depth) break;
+      if (s.isClose || s.depth !== parent.depth + 1) continue;
+      if (isDistModel(s.tag)) break;
+      if (s.tag === 'parameter' && s.attrs.idref === targetId) return true;
+    }
+    /* B2 wrappers place <parameter name="x" idref> BEFORE the <distr>
+     * (BEAUti2 order), so mirror the scan: nearest idref sibling with
+     * no other distribution model in between wins. */
+    for (let j = k - 1; j > pi; j--) {
+      const s = idx[j];
+      if (s.isClose || s.depth !== parent.depth + 1) continue;
+      if (isDistModel(s.tag)) break;
+      if (s.tag === 'parameter' && s.attrs.idref === targetId) return true;
+    }
+    return false;
+  }
+  if (parent.tag !== 'distribution') return false;
+  /* The wrapper's own attributes can carry the target (x="@t", tree="@Tree.t"),
+   * and so can a name="x"-style input child of the wrapper. */
+  if (Object.values(parent.attrs).some(v => v === '@' + targetId)) return true;
+  const distClose = idx.findIndex((s, j) => j > k && s.isClose &&
+    s.tag === parent.tag && s.depth === parent.depth);
+  const parentEnd = distClose > 0 ? distClose : idx.length;
+  for (let j = pi + 1; j < parentEnd; j++) {
+    const s = idx[j];
+    if (s.isClose || s.depth !== parent.depth + 1) continue;
+    if (s.attrs.idref === targetId) return true;
+  }
+  /* The <data> block sits next to <distribution> inside the wrapping
+   * distributionLikelihood. */
+  const gi = enclosingElement(idx, pi);
+  if (gi < 0) return false;
+  const gp = idx[gi];
+  let gpEnd = idx.length;
+  for (let j = gi + 1; j < idx.length; j++) {
+    const s = idx[j];
+    if (s.isClose && s.tag === gp.tag && s.depth === gp.depth) { gpEnd = j; break; }
+  }
+  for (let j = gi + 1; j < gpEnd; j++) {
+    const s = idx[j];
+    if (s.isClose || s.depth !== gp.depth + 1 || s.tag !== 'data') continue;
+    for (let q = j + 1; q < idx.length; q++) {
+      const d = idx[q];
+      if (d.isClose && d.tag === 'data' && d.depth === s.depth) break;
+      if (d.attrs.idref === targetId) return true;
+    }
+  }
+  return false;
+}
+
+/* The index of the element immediately enclosing idx[k], via the element
+ * index's depth column (closed subtrees are stepped over).  -1 if none. */
+function enclosingElement(idx, k) {
+  const want = idx[k].depth - 1;
+  for (let j = k - 1; j >= 0; j--) {
+    const e = idx[j];
+    if (e.isClose) {
+      const d = e.depth;
+      while (j >= 0 && (idx[j].isClose || idx[j].depth !== d)) j--;
+      continue;
+    }
+    if (e.depth === want) return j;
+    if (e.depth < want) return -1;
+  }
+  return -1;
+}
+
+/* Write one attribute of the i-th element of (tagName, targetId).
+ * BEAST X: attributes live on the opening tag.  BEAST2: the user-editable
+ * fields (canonical shape/scale/mean/stdev/offset…) may live either on
+ * the opening tag OR on nested `<parameter name="K" value="…"/>` children
+ * of the element (its native slot names — M/S/alpha/beta — already
+ * canonicalised by distAttrs at parse time).  Resolution order:
+ *   1. attr on the opening tag (canonical or native spelling)
+ *   2. attr on a nested <parameter name=…/> slot
+ *   3. insert on the opening tag as a last resort (rare; e.g. offset).
+ * `aids` carries the optional BEAST2 matcher info: {eid, realTag}.
+ * Returns the new text, or null if the element can't be located.
+ * An empty/undefined value deletes the attribute or slot. */
+export function setAttrOnElement(text, tagName, targetId, i, attrName, attrValue, aids = null) {
+  /* BEAUti2 factor form: the record's dist is the distribution class
+   * (logNormalDistributionModel) but the editable element is the
+   * <prior> wrapper (realTag).  Try the eid under both spellings. */
+  const tags = (aids?.realTag && aids.realTag !== tagName)
+    ? [tagName, aids.realTag] : [tagName];
+  let found = null;
+  for (const t of tags) {
+    found = aids && aids.eid
+      ? (findElementByTagAndRef(text, t, targetId, i, aids.eid) ||
+         findElementByTagAndRef(text, t, targetId, i))
+      : findElementByTagAndRef(text, t, targetId, i);
+    if (found) break;
+  }
   if (!found) return null;
+  const selfClose = found.selfClose;
   const tagSrc = text.slice(found.start, found.end);
-  const re = new RegExp(`\\b${attrName}\\s*=\\s*("([^"]*)"|'([^']*)')`);
-  const m = re.exec(tagSrc);
-  let newTag;
-  if (m) {
-    if (attrValue === null || attrValue === undefined || attrValue === '') {
-      let start = m.index, end = m.index + m[0].length;
-      const before = start > 0 && /\s/.test(tagSrc[start - 1]);
-      const after  = end < tagSrc.length && /\s/.test(tagSrc[end]);
-      if (before && after) {
-        end++;
-      } else if (after) {
-        end++;
-      } else if (before) {
-        start--;
+
+  /* Apply a value to the opening tag, preserving surrounding formatting.
+   * Returns the new tag source, or null to signal "no value to write". */
+  const writeOnTag = (name, val) => {
+    const re = new RegExp(`\\b${name}\\s*=\\s*("([^"]*)"|'([^']*)')`);
+    const m = re.exec(tagSrc);
+    if (m) {
+      if (val === null || val === undefined || val === '') {
+        let start = m.index, end = m.index + m[0].length;
+        const before = start > 0 && /\s/.test(tagSrc[start - 1]);
+        const after  = end < tagSrc.length && /\s/.test(tagSrc[end]);
+        if (before && after) {
+          end++;
+        } else if (after) {
+          end++;
+        } else if (before) {
+          start--;
+        }
+        return tagSrc.slice(0, start) + tagSrc.slice(end);
       }
-      newTag = tagSrc.slice(0, start) + tagSrc.slice(end);
-    } else {
-      newTag = tagSrc.slice(0, m.index) +
-        `${attrName}="${String(attrValue).replace(/"/g, '&quot;')}"` +
+      return tagSrc.slice(0, m.index) +
+        `${name}="${String(val).replace(/"/g, '&quot;')}"` +
         tagSrc.slice(m.index + m[0].length);
     }
-  } else {
-    if (attrValue === null || attrValue === undefined || attrValue === '') return text;
-    const insertRe = /(\s*\/?>)$/;
-    const insertMatch = insertRe.exec(tagSrc);
-    if (!insertMatch) return null;
-    const before = tagSrc.slice(0, insertMatch.index);
-    const tail = insertMatch[0];
+    return null;
+  };
+
+  /* Write a value into a nested slot of this element.  Two layouts:
+   *   BEAUti2: <parameter name="slot" value="…"/>
+   *   MASCOT:  <slot spec="Function$Constant" value="…"/>  (raw tag
+   * names the slot; the spec'd wrapper is just a constant function).
+   * The raw-tag form must carry value= itself — BEAST X's
+   * <mean><parameter value="…"/></mean> wrappers route the write to
+   * their inner <parameter>, not to the wrapper. */
+  const writeOnSlot = (slotName, val) => {
+    const body = text.slice(found.end, nextCloseOf(text, found.end, closeTag));
+    const slotRe = new RegExp(
+      `<\\s*parameter\\b[^>]*\\bname\\s*=\\s*["']${slotName}["'][^>]*>`);
+    let sm = slotRe.exec(body);
+    if (!sm) {
+      const alt = new RegExp(
+        `<\\s*${slotName}\\b[^>]*\\bvalue\\s*=[^>]*\\/\\s*>`);
+      if (alt) sm = alt.exec(body);
+    }
+    if (!sm) return null;
+    const slotSrc = sm[0];
+    const slotOff = found.end + sm.index;
+    const vm = /value\s*=\s*("([^"]*)"|'([^']*)')/.exec(slotSrc);
+    if (vm) {
+      const newSlot = vm[1] !== undefined
+        ? slotSrc.slice(0, vm.index) + `value="${String(val).replace(/"/g, '&quot;')}"` + slotSrc.slice(vm.index + vm[0].length)
+        : slotSrc;
+      return text.slice(0, slotOff) + newSlot + text.slice(slotOff + slotSrc.length);
+    }
+    if (val === null || val === undefined || val === '') return text;
+    /* Slot exists but has no value= — insert one before the tag end. */
+    const ins = /(\s*\/?>)$/.exec(slotSrc);
+    if (!ins) return null;
+    const before = slotSrc.slice(0, ins.index);
     const sep = before.endsWith(' ') || before.length === 0 ? '' : ' ';
-    newTag = before + sep + `${attrName}="${String(attrValue).replace(/"/g, '&quot;')}"` + tail;
+    const newSlot = before + sep + `value="${String(val).replace(/"/g, '&quot;')}"` + ins[0];
+    return text.slice(0, slotOff) + newSlot + text.slice(slotOff + slotSrc.length);
+  };
+
+  /* The element's own opening tag region to scan for nested slots:
+   * from the end of the open tag up to this element's close tag (or
+   * the start of the next same-tag element for self-closing forms).
+   * Raw tag — B2 opens <distr spec="…"> and closes </distr>. */
+  const closeTag = found.rawTag || found.tag;
+  const bodyEnd = selfClose ? nextCloseOf(text, found.end, closeTag) : text.length;
+
+  /* 1) attr already on the opening tag. */
+  const onTag = writeOnTag(attrName, attrValue);
+  if (onTag != null) {
+    return text.slice(0, found.start) + onTag + text.slice(found.end);
   }
+
+  /* 2) nested <parameter name="K" value="…"/> — try the canonical name
+   * first, then the BEAUti2 native spellings the slot may carry. */
+  let slotResult = writeOnSlot(attrName, attrValue);
+  if (slotResult != null) return slotResult;
+
+  /* Native slot spellings for the same canonical field. */
+  const NATIVE = { shape: ['alpha'], scale: ['beta'], mean: ['M'],
+                   stdev: ['S', 'sigma'] };
+  for (const nat of NATIVE[attrName] || []) {
+    slotResult = writeOnSlot(nat, attrValue);
+    if (slotResult != null) return slotResult;
+  }
+
+  /* BEAST X spelling variants: older files carry stdev as `sd` and the
+   * Laplace/Cauchy location as `mu`.  Falls through to the tag-insert
+   * path when neither spelling is present. */
+  const ALIAS = { stdev: ['sd'], mean: ['mu'] };
+  for (const al of ALIAS[attrName] || []) {
+    const aliased = writeOnTag(al, attrValue);
+    if (aliased != null) {
+      return text.slice(0, found.start) + aliased + text.slice(found.end);
+    }
+  }
+
+  /* 3) last resort: insert on the opening tag. */
+  if (attrValue === null || attrValue === undefined || attrValue === '') return text;
+  const insertRe = /(\s*\/?>)$/;
+  const insertMatch = insertRe.exec(tagSrc);
+  if (!insertMatch) return null;
+  const before = tagSrc.slice(0, insertMatch.index);
+  const tail = insertMatch[0];
+  const sep = before.endsWith(' ') || before.length === 0 ? '' : ' ';
+  const newTag = before + sep + `${attrName}="${String(attrValue).replace(/"/g, '&quot;')}"` + tail;
   return text.slice(0, found.start) + newTag + text.slice(found.end);
+}
+
+/* The index of the first `</tag>` (or next `<tag` open) at/after `from`,
+ * bounding the nested-slot scan to this element's own region. */
+function nextCloseOf(text, from, tag) {
+  const re = new RegExp(`<\\s*/\\s*${tag}\\s*>|<\\s*${tag}\\b`, 'g');
+  re.lastIndex = from;
+  const m = re.exec(text);
+  return m ? m.index : text.length;
 }
 
 export function setAttrOnAll(text, tagName, attrName, attrValue) {
@@ -574,24 +985,10 @@ export function parseXml(text) {
   return doc;
 }
 
-export function serializeXml(doc) {
-  return new XMLSerializer().serializeToString(doc);
-}
-
-/* DOM-based helpers retained for callers that prefer a parsed document. */
+/* DOM-based helper retained for readPriorAttrsFromDoc. */
 export function findPrior(doc, distName, targetId, i) {
-  const all = [...doc.getElementsByTagName(distName)];
-  let n = 0;
-  for (const el of all) {
-    if (elementReferences(doc, el, targetId)) {
-      if (n === i) return el;
-      n++;
-    }
-  }
-  return null;
-}
-export function findOperator(doc, tagName, targetId, i) {
-  const all = [...doc.getElementsByTagName(tagName)];
+  const all = [...doc.getElementsByTagName('*')].filter(el =>
+    specTagOf(el.tagName, el.getAttribute('spec')) === distName);
   let n = 0;
   for (const el of all) {
     if (elementReferences(doc, el, targetId)) {
@@ -605,34 +1002,96 @@ function elementReferences(doc, el, targetId) {
   for (const d of el.getElementsByTagName('*')) {
     if (d.getAttribute('idref') === targetId) return true;
   }
+  /* BEAST2 @-attribute references: value="@someId" on the element. */
+  for (const a of el.attributes) {
+    if (a.value === '@' + targetId) return true;
+  }
+  /* Factor form: the target is a SIBLING of the distribution — inside the
+   * same <prior> wrapper (the <parameter idref> that follows it), or in
+   * the sibling <data> block of the wrapping <distribution>, or as a
+   * name="x"-style input child of the wrapper (BEAST2 Prior).  Mirrors
+   * siblingIdref in the text-based matcher so preview reads and edits
+   * resolve to the same element. */
+  const parent = el.parentElement;
+  if (!parent) return false;
+  if (parent.tagName === 'prior' ||
+      specTagOf(parent.tagName, parent.getAttribute('spec')) === 'prior') {
+    let sib = el.nextElementSibling;
+    while (sib) {
+      const st = specTagOf(sib.tagName, sib.getAttribute('spec'));
+      if (/[A-Za-z]Prior$|DistributionModel$/.test(st)) break;
+      if ((sib.tagName === 'parameter' || sib.tagName === 'input') &&
+          (sib.getAttribute('idref') === targetId ||
+           (sib.getAttribute('x') || '').replace(/^@/, '') === targetId)) return true;
+      sib = sib.nextElementSibling;
+    }
+    /* BEAUti2 wrapper also carries the target as an @-attr or name="x"
+     * child BEFORE the distr. */
+    const wa = (parent.getAttribute('x') || '').replace(/^@/, '');
+    if (wa === targetId) return true;
+    for (const c of parent.children) {
+      if (c === el) continue;
+      if (c.getAttribute('name') === 'x' &&
+          (c.getAttribute('idref') === targetId ||
+           (c.getAttribute('x') || '').replace(/^@/, '') === targetId)) return true;
+    }
+  } else if (parent.tagName === 'distribution' &&
+             specTagOf(parent.tagName, parent.getAttribute('spec')) !== 'prior') {
+    const wrap = parent.parentElement;
+    if (wrap) for (const data of wrap.children) {
+      if (data.tagName !== 'data') continue;
+      for (const p of data.getElementsByTagName('parameter')) {
+        if (p.getAttribute('idref') === targetId) return true;
+      }
+    }
+  }
   return false;
 }
 
+/* Read a prior's current attribute values for the live PDF preview.
+ * BEAST X: attributes sit on the element itself.  BEAST2: the fields
+ * may sit on the element (offset, meanInRealSpace) or on nested
+ * <parameter name="K" value="…"/> slots — flatten those in, using the
+ * same canonicalisation as distAttrs so the preview form keys match
+ * what collectPriors recorded. */
 export function readPriorAttrsFromDoc(doc, distName, targetId, i) {
   const el = findPrior(doc, distName, targetId, i);
   if (!el) return null;
-  const out = { kind: distName.replace(/Prior$/, '') };
+  const out = { kind: distKind(distName) };
   for (const a of el.attributes) {
     if (a.name === 'idref') continue;
     out[a.name] = a.value;
   }
+  for (const p of el.getElementsByTagName('parameter')) {
+    const name = p.getAttribute('name');
+    if (!name) continue;
+    const v = p.getAttribute('value') ?? (p.textContent || '').trim();
+    if (v !== '' && out[name] == null) out[name] = v;
+  }
+  /* Canonicalise the BEAUti2 native spellings so the form keys match
+   * distAttrs's output (gamma alpha/beta → shape/scale, M/S →
+   * mean/stdev, sigma → stdev).  A gamma with mode="ShapeRate" keeps
+   * alpha/beta: beta is the rate there, not the scale. */
+  const CANON = { alpha: 'shape', beta: 'scale', M: 'mean', S: 'stdev',
+                  sigma: 'stdev', lambda: 'mean' };
+  const gammaRate = out.kind === 'gamma' && out.mode === 'ShapeRate';
+  for (const [nat, canon] of Object.entries(CANON)) {
+    if (gammaRate && (nat === 'alpha' || nat === 'beta')) continue;
+    if (out[nat] != null && out[canon] == null) { out[canon] = out[nat]; delete out[nat]; }
+  }
   return out;
 }
 
-export function applyPriorEdit(text, distName, targetId, index, key, value) {
-  return setAttrOnElement(text, distName, targetId, index, key, value);
-}
-export function applyOperatorEdit(text, tagName, targetId, index, key, value) {
-  return setAttrOnElement(text, tagName, targetId, index, key, value);
-}
-export function applyMcmcEdit(text, key, value) {
-  return setAttrOnElement(text, 'mcmc', null, 0, key, value);
-}
-export function applyLogEdit(text, kind, key, value) {
-  return setAttrOnAll(text, kind, key, value);
-}
-
 /* --------------------------------------------------------- prior collection */
+
+/* Normalise a prior's dist tag to a short kind name for form lookup.
+ * Strips either the `Prior` suffix (e.g. `normalPrior` -> `normal`)
+ * or the `DistributionModel` suffix (e.g. `expGammaDistributionModel`
+ * -> `expGamma`).  Both spellings are accepted by BEAST X. */
+function distKind(dist) {
+  if (dist === 'MRCAPrior') return 'MRCA';
+  return dist.replace(/Prior$/, '').replace(/DistributionModel$/, '');
+}
 
 /* Build a list of priors exposed by the model.  Each entry is the
  * minimal info needed by PriorDock and McmcEditor: {key, dist,
@@ -654,6 +1113,10 @@ function collectPriors(model) {
         attrs: p.attrs,
         index: i,
         label: p.label || node.id,
+        /* B2 matcher aids — null on BEAST X, where the ref-based path
+         * is used (identical behaviour to before). */
+        eid: p.eid || null,
+        realTag: p.realTag || null,
       });
     }
   }
@@ -675,43 +1138,130 @@ function findPriorByTarget(model, targetId) {
   return priors.filter(p => p.targetId === targetId);
 }
 
-function collectOperators(model) {
+/* Build the sidebar's flat operator list in the same order
+ * buildLineTargets uses, so the data-row-key (op:${arrayIndex})
+ * written on each row lines up with the rowKey attached to the
+ * matching source line.  Iterate <operators> children in document
+ * order and emit one entry per idref under each operator — an
+ * <upDownOperator> with both <up> and <down> refs gets two rows.
+ * The (tag, targetId, index) triple matches what
+ * setAttrOnElement / findElementLine expect. */
+function collectOperators(doc) {
   const out = [];
-  /* Count i-th occurrence of each (tag, target) pair so the McmcEditor
-   * can pass the right index to setAttrOnElement / findElementLine. */
   const seen = new Map();
-  for (const n of model.nodes) {
-    for (const o of n.operators || []) {
-      const k = o.tag + ':' + n.id;
+  /* BEAST X: every child of <operators>; BEAST2: operator children of
+   * <run> — the same dialect regex parse-beast uses, so the sidebar
+   * lists exactly the rows buildLineTargets generated.  eid is kept
+   * (BEAUti2 ids are unique) so setAttrOnElement can match the exact
+   * element rather than the i-th ref-carrying one. */
+  const root = doc.documentElement;
+  const isB2 = /^2\./.test(root.getAttribute('version') || '') ||
+      root.hasAttribute('namespace') ||
+      doc.getElementsByTagName('run').length ||
+      doc.querySelector('[spec]');
+  const ops = isB2
+    /* BEAST2's operator input tag is literally <operator>, nested
+     * inside samplers and <subschedule> groups as well as <run>'s
+     * direct children — same walk as parse-beast's buildLineTargets
+     * so the sidebar rows and the clickable line ranges agree. */
+    ? [...doc.querySelectorAll('run, operatorschedule')]
+        .flatMap(outer => [...outer.querySelectorAll('operator')])
+    : (ops0 => ops0.length ? [...ops0[0].children] : [])(doc.getElementsByTagName('operators'));
+  for (const op of ops) {
+    const rawTag = op.tagName;
+    const spec = op.getAttribute('spec');
+    const tag = specTagOf(rawTag, spec);
+    const attrs = {};
+    for (const a of op.attributes) attrs[a.name] = a.value;
+    /* A member <operator idref> inside a sampler names another
+     * operator, not a variable — no row for it.  B2 only: BEAST X's
+     * HMC <gradient idref> composition refs must keep their rows. */
+    const opIds = isB2
+      ? new Set(ops.map(o => o.getAttribute('id')).filter(Boolean))
+      : null;
+    const refs = [...new Set(refsUnderDoc(op))].filter(r => !opIds || !opIds.has(r));
+    if (refs.length === 0) continue;
+    for (const t of refs) {
+      const k = tag + ':' + t;
       const i = seen.get(k) || 0;
       seen.set(k, i + 1);
       out.push({
-        tag: o.tag,
-        targetId: n.id,
-        attrs: o.attrs,
+        tag,
+        targetId: t,
+        attrs,
         index: i,
-        label: n.id,
+        label: t,
+        /* B2 matcher aids (B1 keeps them null so the ref-based path
+         * is used, identical to before). */
+        eid: isB2 ? (op.getAttribute('id') || null) : null,
+        realTag: rawTag,
       });
     }
   }
-  /* Index each operator by its (tag, target, index) tuple so the
-   * McmcEditor can look it up when wiring a click-to-jump. */
   return out;
 }
 
-function readMcmcAttrs(doc) {
-  const mcmc = doc.querySelector('mcmc');
-  if (!mcmc) return [];
+/* Walk an operator element and return its idref targets in
+ * document order.  Mirrors parse-beast.js's refsUnder but lives
+ * here to avoid a cross-module import. */
+function refsUnderDoc(el) {
   const out = [];
-  for (const a of mcmc.attributes) out.push([a.name, a.value]);
+  for (const d of el.getElementsByTagName('*')) {
+    const r = d.getAttribute && d.getAttribute('idref');
+    if (r) out.push(r);
+  }
   return out;
 }
+
+/* Chain settings: BEAST X <mcmc>; BEAST2 <run spec="MCMC"> (matching
+ * buildLineTargets's mcmc row, so jump-to-line lands on the same
+ * element). */
+function readMcmcAttrs(doc) {
+  const mcmc = doc.querySelector('mcmc') ||
+    [...doc.getElementsByTagName('run')].find(r => r.getAttribute('spec') === 'MCMC');
+  if (!mcmc) return [];
+  const out = [];
+  for (const a of mcmc.attributes) {
+    if (a.name === 'spec') continue;
+    out.push([a.name, a.value]);
+  }
+  out.eid = mcmc.getAttribute('id') || null;
+  return out;
+}
+/* Log rows: BEAST X <log>/<logTree>; BEAST2 <logger> (both the trace
+ * logger and the tree logger — B2 files use one element type).  Only
+ * the top-level logging elements are rows: B2 loggers contain <log
+ * idref> children (one per logged parameter) and those must not be
+ * swept up as separate rows.  Each row carries the element id so
+ * per-row commits target exactly that element. */
 function readLogAttrs(doc) {
   const out = [];
-  for (const tag of ['log', 'logTree']) {
+  /* Presence check counts only top-level elements: a B2 file's nested
+   * <log idref> children inside <logger> must not flip the kinds list
+   * to ['log','logTree'] (their parent logger is the row).  Children of
+   * <plate> must not either — the plate body is a template whose clones
+   * the editor never sees, so a plate-nested <log idref> is not a row. */
+  const topCount = tag =>
+    [...doc.getElementsByTagName(tag)]
+      .filter(el => el.parentElement &&
+        !['log', 'logTree', 'logger', 'plate']
+          .includes(el.parentElement.tagName.toLowerCase()))
+      .length;
+  const logKinds = topCount('log') || topCount('logTree')
+    ? ['log', 'logTree'] : ['logger'];
+  for (const tag of logKinds) {
     for (const el of doc.getElementsByTagName(tag)) {
+      /* Skip nested log elements — in a B2 file <log idref> children
+       * sit inside <logger>; the logger itself is the row. */
+      if (logKinds.includes(specTagOf(el.parentElement.tagName,
+                                el.parentElement.getAttribute('spec')))) continue;
+      /* Skip plate templates (id contains "$(n)"): the template's
+       * expanded clones are what the model shows, and editing the
+       * template from here is out of scope for now. */
+      if ((el.getAttribute('id') || '').includes('$(n)')) continue;
       const row = { kind: tag };
       for (const a of el.attributes) row[a.name] = a.value;
+      row.eid = el.getAttribute('id') || null;
       out.push(row);
     }
   }
@@ -719,9 +1269,6 @@ function readLogAttrs(doc) {
 }
 
 /* ------------------------------------------------------- shared form helpers */
-
-const esc = s => String(s).replace(/[&<>"']/g, c =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /* Escape a string for use as a CSS attribute-selector value. */
 const cssEscape = (s) => {
@@ -768,6 +1315,54 @@ function priorFields(kind) {
         { key: 'scale', label: 'scale (\u03B8)', type: 'text' },
         { key: 'offset', label: 'offset (shifts support right)', type: 'text' },
       ];
+    case 'expGamma':
+      return [
+        { key: 'shape', label: 'shape (\u03B1 of ln x)', type: 'text' },
+        { key: 'scale', label: 'scale (\u03B8 of ln x)', type: 'text' },
+        { key: 'offset', label: 'offset (shifts support right)', type: 'text' },
+      ];
+    case 'invgamma':
+    case 'inverseGamma':
+    case 'invGamma':
+      return [
+        { key: 'shape', label: 'shape (\u03B1)', type: 'text' },
+        { key: 'scale', label: 'scale (\u03B2)', type: 'text' },
+        { key: 'offset', label: 'offset (shifts support right)', type: 'text' },
+      ];
+    case 'cauchy':
+      return [
+        { key: 'mean', label: 'mean (location)', type: 'text' },
+        { key: 'scale', label: 'scale', type: 'text' },
+        { key: 'offset', label: 'offset (shifts support)', type: 'text' },
+      ];
+    case 'halfNormal':
+      return [
+        { key: 'stdev', label: 'stdev (\u03C3)', type: 'text' },
+        { key: 'mean', label: 'mean', type: 'text' },
+        { key: 'offset', label: 'offset (shifts support)', type: 'text' },
+      ];
+    case 'halfCauchy':
+      return [
+        { key: 'scale', label: 'scale', type: 'text' },
+        { key: 'mean', label: 'mean', type: 'text' },
+        { key: 'offset', label: 'offset (shifts support)', type: 'text' },
+      ];
+    case 'halfT':
+      return [
+        { key: 'df', label: 'df (degrees of freedom)', type: 'text' },
+        { key: 'scale', label: 'scale', type: 'text' },
+        { key: 'mean', label: 'mean', type: 'text' },
+        { key: 'offset', label: 'offset (shifts support)', type: 'text' },
+      ];
+    case 'poisson':
+      return [
+        { key: 'mean', label: 'mean (\u03BB)', type: 'text' },
+      ];
+    case 'dirichlet':
+      return [
+        { key: 'alpha', label: 'alpha', type: 'text' },
+        { key: 'sumsTo', label: 'sumsTo', type: 'text' },
+      ];
     case 'normal':
       return [
         { key: 'mean', label: 'mean', type: 'text' },
@@ -794,6 +1389,14 @@ function priorFields(kind) {
       ];
     case 'oneOnX':
       return [];
+    case 'MRCA':
+      return [
+        { key: 'monophyletic', label: 'monophyletic', type: 'select',
+          options: ['true', 'false'] },
+        { key: 'offset', label: 'offset (lower height bound)', type: 'text' },
+        { key: 'mean', label: 'mean (height mean, log space)', type: 'text' },
+        { key: 'stdev', label: 'stdev (height stdev, log space)', type: 'text' },
+      ];
     default:
       return [];
   }
@@ -843,7 +1446,7 @@ export class PriorDock {
     this.prior = prior;
     this.pendingInputs = {};
     this.root.hidden = false;
-    this.title.textContent = `Prior: ${prior.dist.replace(/Prior$/, '')}`;
+    this.title.textContent = `Prior: ${distKind(prior.dist)}`;
     this.render();
   }
 
@@ -871,10 +1474,10 @@ export class PriorDock {
     if (!this.body) return;
     const p = this.prior;
     if (!p) return;
-    const distKind = p.dist.replace(/Prior$/, '');
-    const info = PRIOR_INFO[distKind] || { label: distKind, text: '' };
-    const isCtmc = distKind === 'ctmcScale';
-    const spec = isCtmc ? [] : priorFields(distKind);
+    const kind = distKind(p.dist);
+    const info = PRIOR_INFO[kind] || { label: kind, text: '' };
+    const isCtmc = kind === 'ctmcScale';
+    const spec = isCtmc ? [] : priorFields(kind);
 
     /* Header.  The dist name, the target parameter id, and a small
      * link to swap to the next prior on the same target. */
@@ -925,7 +1528,7 @@ export class PriorDock {
     const plot = this.body.querySelector('#pd-plot');
     if (!plot || !this.prior) return;
     const p = this.prior;
-    const kind = p.dist.replace(/Prior$/, '');
+    const kind = distKind(p.dist);
     const base = readPriorAttrsFromDoc(this.doc, p.dist, p.targetId, p.index);
     const pending = this.pendingInputs || {};
     const vals = Object.assign({ kind }, base || {}, pending);
@@ -938,7 +1541,8 @@ export class PriorDock {
     inputs.forEach(inp => {
       const commit = () => {
         const result = this.commit(xml =>
-          applyPriorEdit(xml, p.dist, p.targetId, p.index, inp.dataset.key, inp.value));
+          setAttrOnElement(xml, p.dist, p.targetId, p.index, inp.dataset.key, inp.value,
+            p.eid ? { eid: p.eid, realTag: p.realTag } : null));
         if (result === null && inp.value !== '') {
           this.onEditError(
             `${p.dist} on ${p.targetId}: attribute "${inp.dataset.key}" was not applied`);
@@ -1041,7 +1645,7 @@ export class McmcEditor {
     if (!this.root) return;
     const m = this.model;
     const priors = collectPriors(m);
-    const operators = collectOperators(m);
+    const operators = collectOperators(this.doc);
     const mcmc = readMcmcAttrs(this.doc);
     const logs = readLogAttrs(this.doc);
 
@@ -1049,7 +1653,7 @@ export class McmcEditor {
      * fall back to the first prior that has editable form fields, so
      * the preview has something meaningful to show. */
     if (!priors.find(p => p.key === this.selectedPrior)) {
-      const withFields = priors.find(p => priorFields(p.dist.replace(/Prior$/, '')).length);
+      const withFields = priors.find(p => priorFields(distKind(p.dist)).length);
       this.selectedPrior = withFields ? withFields.key :
                             (priors[0] ? priors[0].key : null);
     }
@@ -1088,7 +1692,14 @@ export class McmcEditor {
 
       <section>
         <h3>Log &amp; log tree <span class="me-count">${logs.length}</span></h3>
-        ${logs.length ? logs.map((lg, i) => this.logRow(lg, i)).join('') :
+        ${logs.length ? (() => {
+          const seen = new Map();
+          return logs.map((lg, i) => {
+            const n = seen.get(lg.kind) || 0;
+            seen.set(lg.kind, n + 1);
+            return this.logRow(lg, n);
+          }).join('');
+        })() :
           '<div class="hint">No <code>&lt;log&gt;</code> / <code>&lt;logTree&gt;</code> elements.</div>'}
       </section>`;
 
@@ -1107,7 +1718,7 @@ export class McmcEditor {
     if (!preview) return;
     const p = this.findPrior(this.selectedPrior);
     if (!p) { preview.innerHTML = ''; return; }
-    const kind = p.dist.replace(/Prior$/, '');
+    const kind = distKind(p.dist);
     const base = readPriorAttrsFromDoc(this.doc, p.dist, p.targetId, p.index);
     const pending = this.priorPreviewValues[p.key] || {};
     const vals = Object.assign({ kind }, base || {}, pending);
@@ -1133,23 +1744,50 @@ export class McmcEditor {
     this.refreshPriorPreview();
   }
 
+  /* Public entry point for app.js when the user clicks a line in
+   * the source view.  Selects (and scrolls into view) the matching
+   * sidebar row, and for priors also updates the live preview.  The
+   * target shape mirrors what buildLineTargets produces:
+   *   { kind, tag, target, i, rowKey, startLine, endLine } */
+  focusLineTarget(target) {
+    if (!this.root || !target) return false;
+    if (target.kind === 'prior') {
+      /* The rowKey is `pri:<priorKey>`, and selectPrior expects the
+       * bare prior key.  Strip the prefix. */
+      const priorKey = target.rowKey.replace(/^pri:/, '');
+      this.selectPrior(priorKey);
+      this.selectRow('pri:' + priorKey, { scroll: true });
+      return true;
+    }
+    this.selectRow(target.rowKey, { scroll: true });
+    return true;
+  }
+
   /* Mark a row as the active sidebar row.  Clears the highlight on
-   * all other rows and applies it to the matching one.  Used by
-   * click handlers across priors, operators, mcmc, and logs. */
-  selectRow(key) {
+   * all other rows, applies it to the matching one, and (when
+   * `scroll` is true) scrolls the row into view.  Used by click
+   * handlers across priors, operators, mcmc, and logs, and by
+   * the SourceView line-click handler. */
+  selectRow(key, { scroll = false } = {}) {
     if (!this.root) return;
-    if (this.selectedRowKey === key) return;
     this.selectedRowKey = key;
     for (const row of this.root.querySelectorAll('.slot')) {
       row.classList.remove('selected');
     }
     if (!key) return;
     const sel = this.root.querySelector(`.slot[data-row-key="${cssEscape(key)}"]`);
-    if (sel) sel.classList.add('selected');
+    if (sel) {
+      sel.classList.add('selected');
+      if (scroll) sel.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
   }
 
   operatorRow(op, i) {
     const spec = operatorFields();
+    /* i is the array index of this operator in the collectOperators
+     * output, and that's the same index buildLineTargets uses for
+     * the operator rowKey (`op:${i}`), so the SourceView's
+     * click-to-jump lands on the correct row. */
     return `
       <div class="slot" data-op-row="${i}" data-tag="${esc(op.tag)}"
            data-target="${esc(op.targetId)}" data-row-key="op:${i}" tabindex="0"
@@ -1168,10 +1806,10 @@ export class McmcEditor {
    * the prior (showing its preview at the top of the sidebar) and to
    * jump to its location in the source XML. */
   priorRow(p, isSelected) {
-    const distKind = p.dist.replace(/Prior$/, '');
-    const info = PRIOR_INFO[distKind] || { label: distKind, text: '' };
-    const isCtmc = distKind === 'ctmcScale';
-    const spec = isCtmc ? [] : priorFields(distKind);
+    const kind = distKind(p.dist);
+    const info = PRIOR_INFO[kind] || { label: kind, text: '' };
+    const isCtmc = kind === 'ctmcScale';
+    const spec = isCtmc ? [] : priorFields(kind);
     return `
       <div class="slot ${isSelected ? 'selected' : ''}"
            data-pri-row="0" data-pri-key="${esc(p.key)}"
@@ -1206,9 +1844,10 @@ export class McmcEditor {
   logRow(lg, i) {
     return `
       <div class="slot" data-log-row="${i}" data-kind="${esc(lg.kind)}"
-           data-row-key="log:${i}" tabindex="0"
+           data-eid="${esc(lg.eid || '')}"
+           data-row-key="log:${esc(lg.kind)}:${i}" tabindex="0"
            title="Click to jump to this &lt;${esc(lg.kind)}&gt; in the source XML">
-        <div class="slot-head"><strong>&lt;${esc(lg.kind)}&gt;</strong></div>
+        <div class="slot-head"><strong>&lt;${esc(lg.kind)}&gt;</strong>${lg.id ? ` <code>${esc(lg.id)}</code>` : ''}</div>
         <div class="slot-form">
           <label>logEvery</label>
           <input type="number" data-log="" data-key="logEvery"
@@ -1224,18 +1863,22 @@ export class McmcEditor {
     /* Pre-compute the (tag, target, i) triples for each operator in
      * the same order they appear in the sidebar, so row clicks can
      * look up the right i-th occurrence. */
-    const operators = collectOperators(this.model);
+    const operators = collectOperators(this.doc);
     for (const row of this.root.querySelectorAll('[data-op-row]')) {
       const rowIndex = +row.dataset.opRow;
       const op = operators[rowIndex];
       if (!op) continue;
-      const { tag, targetId, index: i } = op;
+      const { tag, targetId, index: i, eid, realTag } = op;
+      /* Match the data-row-key that operatorRow wrote on this row
+       * (the array index — unique across all operators). */
+      const rowKey = 'op:' + rowIndex;
+      const aids = eid ? { eid } : null;
       row.querySelectorAll('[data-op]').forEach(inp => {
-        inp.addEventListener('focus', () => this.selectRow('op:' + rowIndex));
+        inp.addEventListener('focus', () => this.selectRow(rowKey));
         inp.addEventListener('change', () => {
-          this.selectRow('op:' + rowIndex);
+          this.selectRow(rowKey);
           this.commit(xml =>
-            applyOperatorEdit(xml, tag, targetId, i, inp.dataset.key, inp.value));
+            setAttrOnElement(xml, tag, targetId, i, inp.dataset.key, inp.value, aids));
         });
       });
       /* Click on the row header (not the form fields) jumps to the
@@ -1246,8 +1889,8 @@ export class McmcEditor {
         head.style.cursor = 'pointer';
         head.addEventListener('click', e => {
           if (e.target.closest('input, select, textarea, label')) return;
-          this.selectRow('op:' + rowIndex);
-          this.jumpToElement(tag, targetId, i);
+          this.selectRow(rowKey);
+          this.jumpToElement(tag, targetId, i, aids);
         });
       }
     }
@@ -1262,11 +1905,13 @@ export class McmcEditor {
       const dist = row.dataset.dist;
       const target = row.dataset.target;
       const idx = +row.dataset.index;
+      const pr = findPriorByKey(this.model, key);
+      const aids = pr && pr.eid ? { eid: pr.eid, realTag: pr.realTag } : null;
       row.querySelectorAll('[data-pri]').forEach(inp => {
         const fieldKey = inp.dataset.key;
         const commit = () => {
           const result = this.commit(xml =>
-            applyPriorEdit(xml, dist, target, idx, fieldKey, inp.value));
+            setAttrOnElement(xml, dist, target, idx, fieldKey, inp.value, aids));
           if (result === null && inp.value !== '') {
             this.onEditError(
               `${dist} on ${target}: attribute "${fieldKey}" was not applied`);
@@ -1307,37 +1952,52 @@ export class McmcEditor {
         head.addEventListener('click', e => {
           if (e.target.closest('input, select, textarea, label')) return;
           this.selectPrior(key);  // also calls selectRow internally
-          this.jumpToElement(dist, target, idx);
+          this.jumpToElement(dist, target, idx, aids);
         });
       }
     }
   }
 
   /* Resolve the i-th element of (tagName, targetId) to a source line
-   * and ask the host to jump there. */
-  jumpToElement(tagName, targetId, i) {
-    const line = findElementLine(this.xmlText, tagName, targetId, i);
+   * and ask the host to jump there.  B2 rows carry realTag/eid, which
+   * findElementByTagAndRef uses directly. */
+  jumpToElement(tagName, targetId, i, aids = null) {
+    const found = findElementByTagAndRef(this.xmlText, tagName, targetId, i,
+                                          aids && aids.eid ? aids.eid : null);
+    const line = found ? offsetToLine(this.xmlText, found.start) : null;
     if (line != null) this.onJumpToLine(line);
   }
 
   wireMcmcRows() {
+    /* Chain settings live on <mcmc> (BEAST X) or <run spec="MCMC">
+     * (BEAST2) — one row, whatever the dialect. */
+    const mcmcEl = this.doc.querySelector('mcmc') ||
+      [...this.doc.getElementsByTagName('run')].find(r => r.getAttribute('spec') === 'MCMC');
+    const mcmcTag = mcmcEl ? specTagOf(mcmcEl.tagName, mcmcEl.getAttribute('spec')) : 'mcmc';
     for (const inp of this.root.querySelectorAll('[data-mcmc]')) {
       inp.addEventListener('focus', () => this.selectRow('mcmc'));
       inp.addEventListener('change', () => {
         this.selectRow('mcmc');
         this.commit(xml =>
-          applyMcmcEdit(xml, inp.dataset.key, inp.value));
+          setAttrOnElement(xml, mcmcTag, null, 0, inp.dataset.key, inp.value,
+            mcmcEl ? { eid: mcmcEl.getAttribute('id') || null } : null));
       });
     }
     for (const inp of this.root.querySelectorAll('[data-log]')) {
       const row = inp.closest('[data-log-row]');
-      const rowKey = 'log:' + row.dataset.logRow;
+      const rowKey = 'log:' + row.dataset.kind + ':' + row.dataset.logRow;
       inp.addEventListener('focus', () => this.selectRow(rowKey));
       inp.addEventListener('change', () => {
         this.selectRow(rowKey);
         const kind = row.dataset.kind;
-        this.commit(xml =>
-          applyLogEdit(xml, kind, inp.dataset.key, inp.value));
+        /* Per-element edit: B2 loggers carry ids (and B1 logs usually
+         * do too); setAttrOnElement with an eid touches exactly this
+         * element.  Fall back to setAttrOnAll only when the element
+         * has no id attribute to anchor on. */
+        const eid = row.dataset.eid || null;
+        this.commit(xml => eid
+          ? setAttrOnElement(xml, kind, null, 0, inp.dataset.key, inp.value, { eid })
+          : setAttrOnAll(xml, kind, inp.dataset.key, inp.value));
       });
     }
     /* Click on the <mcmc> row header jumps to the <mcmc> element's
@@ -1350,8 +2010,7 @@ export class McmcEditor {
         head.addEventListener('click', e => {
           if (e.target.closest('input, select, textarea, label')) return;
           this.selectRow('mcmc');
-          const line = findElementLine(this.xmlText, 'mcmc', null, 0);
-          if (line != null) this.onJumpToLine(line);
+          this.jumpToElement(mcmcTag, null, 0);
         });
       }
     }
@@ -1369,9 +2028,9 @@ export class McmcEditor {
         head.style.cursor = 'pointer';
         head.addEventListener('click', e => {
           if (e.target.closest('input, select, textarea, label')) return;
-          this.selectRow('log:' + i);
-          const line = findElementLine(this.xmlText, kind, null, i);
-          if (line != null) this.onJumpToLine(line);
+          this.selectRow('log:' + kind + ':' + i);
+          const eid = row.dataset.eid || null;
+          this.jumpToElement(kind, null, eid ? 0 : i, eid ? { eid } : null);
         });
       }
     });

@@ -1,9 +1,10 @@
 /* Renders the parsed model as probabilistic-model notation: the posterior
  * factorisation, then the distributional statement behind every term.
  *
- * The factorisation is the one BEAST itself targets — read from <joint>,
- * <prior> and <likelihood> — so this view and the diagram describe the same
- * object, per Eq. 1-2 of Hohna et al. (2014). */
+ * The factorisation is the one BEAST itself targets — read from the joint
+ * structure (BEAST X: <joint>/<prior>/<likelihood>; BEAST 2: the
+ * <distribution id="posterior"> block) — so this view and the diagram
+ * describe the same object, per Eq. 1-2 of Hohna et al. (2014). */
 
 const TEX = {
   'Ψ': '\\Psi', 'Ψₛ': '\\Psi_s', 'κ': '\\kappa', 'α': '\\alpha', 'β': '\\beta',
@@ -12,6 +13,14 @@ const TEX = {
   'Nₑ': 'N_e', 'β₀': '\\beta_0', 'β₁': '\\beta_1', 't₀': 't_0', 'r̄': '\\bar{r}',
   'N(t)': 'N(t)', 'Γ': '\\Gamma', 'Q': 'Q', 'M': 'M', 'D': 'D', 'Z': 'Z',
   'r': 'r', 'g': 'g', 'BD': '\\mathrm{BD}',
+};
+
+/* Unicode subscript digits 0-9.  These show up on disambiguated
+ * labels (κ₁, κ₂, …) and need to translate to a TeX subscript so
+ * the exported LaTeX reads the same way. */
+const TEX_SUBSCRIPTS = {
+  '₀': '_0', '₁': '_1', '₂': '_2', '₃': '_3', '₄': '_4',
+  '₅': '_5', '₆': '_6', '₇': '_7', '₈': '_8', '₉': '_9',
 };
 
 /** Friendly names for the deterministic components. */
@@ -40,6 +49,7 @@ const FACTOR_NAME = {
   coalescentLikelihood: 'Coalescent', speciationLikelihood: 'Speciation',
   gmrfSkyrideLikelihood: 'Skyride', gmrfSkyGridLikelihood: 'SkyGrid',
   multivariateTraitLikelihood: 'MultivariateTrait',
+  bdmmPrimeDistribution: 'BDMM-Prime',
 };
 
 /* Where the algebra is the point rather than the component name, spell it
@@ -247,7 +257,7 @@ function algebraicForm(n, parents, sym, bare) {
 
 // ---------------------------------------------------------------- build
 
-export function buildNotation(model) {
+export function buildNotation(model, { math = false } = {}) {
   const byId = new Map(model.nodes.map(n => [n.id, n]));
   const live = n => n && !n.machinery;
 
@@ -268,16 +278,26 @@ export function buildNotation(model) {
   const texIndex = id => (index.get(id) === 'ⱼ' ? '_j'
                         : index.get(id) === 'ᵢ' ? '_i' : '');
 
-  const bare = id => byId.get(id)?.label ?? id;
+  /* The notation view shows full BEAST ids so users can cross-reference the
+   * XML — the diagram boxes use a short display label, but here we want the
+   * whole thing.  caption is the unmodified id; label is the (possibly
+   * truncated) display form.  Fall back to label only when caption is
+   * missing. */
+  const fullId = id => {
+    const n = byId.get(id);
+    return n?.caption || n?.label || id;
+  };
+  const bare = id => fullId(id);
   const sym = id => {
     const n = byId.get(id);
     if (!n) return id;
-    return n.label + (index.get(id) || '');
+    const s = fullId(id) + (index.get(id) || '');
+    return math ? mathSymbol(s) : s;
   };
   const symTex = id => {
     const n = byId.get(id);
     if (!n) return `\\mathrm{${escTex(id)}}`;
-    return texOf(n.label) + texIndex(id);
+    return texOf(fullId(id)) + texIndex(id);
   };
 
   const post = model.posterior || { prior: [], likelihood: [], densities: {} };
@@ -456,6 +476,7 @@ export function buildNotation(model) {
   return {
     posterior, terms, deterministic, constants, glossary,
     found: post.found,
+    dialect: model.meta?.dialect,
     latex: toLatex(posterior, terms, deterministic),
   };
 }
@@ -476,15 +497,79 @@ function probTexOf(t, symTex) {
 
 function texOf(label) {
   if (TEX[label]) return TEX[label];
-  const base = label.replace(/[ⱼᵢ]$/, '');
-  if (TEX[base]) return TEX[base];
+  /* Translate any trailing Unicode subscripts to TeX.  We slice
+   * off every Unicode subscript digit, not just the last one, so
+   * a label like β₁₂ maps to \beta_{12}. */
+  const subMatch = label.match(/([₀-₉]+)$/);
+  if (subMatch) {
+    const base = label.slice(0, subMatch.index);
+    const digits = subMatch[1].split('').map(c => TEX_SUBSCRIPTS[c] || c).join('');
+    const baseTex = TEX[base] || `\\mathrm{${escTex(base)}}`;
+    return `${baseTex}_{${digits}}`;
+  }
+  const plateBase = label.replace(/[ⱼᵢ]$/, '');
+  if (TEX[plateBase]) return TEX[plateBase];
   return `\\mathrm{${escTex(label)}}`;
 }
 
 const escTex = s => String(s).replace(/([\\{}_$&%#^~])/g, '\\$1');
 
+/* Glyphs for the Math view lhs: parameter names like alpha, beta, kappa
+ * typeset as Greek letters (α, β, κ, …) rather than as Latin words.  Inverted
+ * from the TEX map so the two views stay in sync. */
+const MATH_SYMBOLS = Object.fromEntries(
+  Object.entries(TEX).map(([glyph, tex]) => [tex.replace(/^\\/, ''), glyph])
+);
+
+const MATH_SYMBOL_KEYS = Object.keys(MATH_SYMBOLS).sort((a, b) => b.length - a.length);
+
+/** Map a parameter id to its math glyph: alpha → α, beta → β, kappa → κ.
+ *  Word boundaries keep gammaShape, rateAC and the like untouched. */
+function mathSymbol(s) {
+  const index = /[ⱼᵢ]$/.exec(s)?.[0] || '';
+  const base = s.replace(/[ⱼᵢ]$/, '');
+  let out = base;
+  for (const name of MATH_SYMBOL_KEYS) {
+    out = out.replace(new RegExp(`\\b${name}\\b`, 'g'), MATH_SYMBOLS[name]);
+  }
+  return out + index;
+}
+
+/* Glyphs for the Math view: distribution and component names typeset as
+ * symbols (N, Γ, Exp, U, …) rather than as Latin words.  The worded view
+ * keeps the full names; the Math view shows what a typeset equation uses. */
+const MATH_LABELS = {
+  Normal: 'N', LogNormal: 'LogNormal', Exponential: 'Exp', Gamma: 'Γ',
+  Uniform: 'U', Laplace: 'Lap', Beta: 'β', Poisson: 'Pois', Cauchy: 'Cauchy',
+  InvGamma: 'InvΓ', ExpGamma: 'ExpΓ', DiscreteGamma: 'DiscreteΓ',
+  ConstantSize: 'ConstantSize', ExponentialGrowth: 'ExpGrowth',
+  LogisticGrowth: 'LogGrowth', ArbitraryBranchRates: 'ArbitraryBranchRates',
+  FixedEffects: 'FixedEffects', RandomLocalClock: 'RandomLocalClock',
+  LocalClock: 'LocalClock', CountableMixture: 'CountableMixture',
+  CompoundBranchRates: 'CompoundBranchRates',
+  DiscretizedBranchRates: 'DiscretizedBranchRates', StrictClock: 'StrictClock',
+  Yule: 'Yule', BirthDeath: 'BirthDeath', Coalescent: 'Coalescent',
+  Skyride: 'Skyride', SkyGrid: 'SkyGrid', MultivariateTrait: 'MultivariateTrait',
+  'BDMM-Prime': 'BDMM-Prime', CTMCScale: 'CTMCScale', Dirichlet: 'Dir',
+  MVN: 'MVN', 'Half-t': 'Half-t', HalfNormal: 'HalfN', HalfCauchy: 'HalfCauchy',
+  MRCA: 'MRCA', HKY: 'HKY', GTR: 'GTR', TN93: 'TN93', JC69: 'JC69',
+  CTMC: 'CTMC', AminoAcid: 'AminoAcid', Codon: 'Codon', YangCodon: 'YangCodon',
+  Frequencies: 'Frequencies', SiteModel: 'SiteModel', PhyloCTMC: 'PhyloCTMC',
+};
+
+/* Names are replaced longest-first so ExpGamma → ExpΓ before Gamma → Γ. */
+const MATH_LABEL_KEYS = Object.keys(MATH_LABELS).sort((a, b) => b.length - a.length);
+
+/** Replace distribution / component names with their math glyphs. */
+function mathLabel(s) {
+  return MATH_LABEL_KEYS.reduce((acc, name) => acc.split(name).join(MATH_LABELS[name]), s);
+}
+
+/* Values print as written, but a BEAST2 @-ref stands in for the
+ * referenced parameter's value — print the bare id. */
 function compact(v) {
   if (v == null) return '';
+  if (String(v).startsWith('@')) return String(v).slice(1);
   const x = Number(v);
   if (!Number.isFinite(x)) return String(v);
   if (x === 0) return '0';
@@ -527,17 +612,24 @@ function toLatex(posterior, terms, deterministic) {
 const esc = s => String(s).replace(/[&<>]/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
-export function renderNotation(note, el) {
+export function renderNotation(note, el, opts = {}) {
+  /* Math mode renders the worded notation with the distribution and
+   * component names in their math glyphs (N, Γ, Exp, U, …) rather than as
+   * Latin words — the worded rendering is unchanged.  `label` escapes the
+   * text for HTML, and maps the names when in Math mode. */
+  const math = opts.math === true;
+  const label = s => math ? esc(mathLabel(mathSymbol(s))) : esc(s);
   const stmt = (t, extra = '') => `
     <div class="row">
       <div class="stmt">
-        <span class="lhs">${esc(t.lhs)}</span>
+        <span class="lhs">${math ? esc(mathSymbol(t.lhs)) : esc(t.lhs)}</span>
         <span class="op">${esc(t.op)}</span>
-        <span class="rhs">${esc(t.rhs)}</span>
+        <span class="rhs">${label(t.rhs)}</span>
         <span class="src" title="${esc(t.element || '')}">${esc(t.source || '')}</span>
       </div>${extra}
     </div>`;
 
+  const b2 = note.dialect === 'BEAST2';
   const likelihood = note.terms.filter(t => t.section === 'likelihood');
   const prior = note.terms.filter(t => t.section === 'prior');
 
@@ -547,10 +639,16 @@ export function renderNotation(note, el) {
     <section>
       <h3><span class="chevron"></span>Posterior</h3>
       <div class="eq-wrap"><div class="eq">${esc(note.posterior.text)}</div></div>
-      <p class="note">Read from the <code>&lt;joint&gt;</code> block of the XML:
-        every factor below is one child of <code>&lt;prior&gt;</code> or
-        <code>&lt;likelihood&gt;</code>, so this is the density the sampler
-        actually targets.</p>
+      <p class="note">${b2
+        ? `Read from the <code>&lt;distribution id="posterior"&gt;</code> block
+           of the XML: every factor below is one child of its
+           <code>&lt;distribution id="prior"&gt;</code> or
+           <code>&lt;distribution id="likelihood"&gt;</code>, so this is the
+           density the sampler actually targets.`
+        : `Read from the <code>&lt;joint&gt;</code> block of the XML:
+           every factor below is one child of <code>&lt;prior&gt;</code> or
+           <code>&lt;likelihood&gt;</code>, so this is the density the sampler
+           actually targets.`}</p>
     </section>
 
     ${likelihood.length ? `<section>
@@ -566,9 +664,9 @@ export function renderNotation(note, el) {
     ${note.deterministic.length ? `<section>
       <h3><span class="chevron"></span>Deterministic</h3>
       <div class="stmts">${note.deterministic.map(d => stmt(d,
-        (d.form ? `<div class="form">${esc(d.form.text)}${
+        (d.form ? `<div class="form">${label(d.form.text)}${
           d.form.note ? `<span class="form-note">${esc(d.form.note)}</span>` : ''}</div>` : '') +
-        ((d.extra && d.extra.length) ? `<div class="form">${esc(d.extra.join('; '))}</div>` : '')
+        ((d.extra && d.extra.length) ? `<div class="form">${label(d.extra.join('; '))}</div>` : '')
       )).join('')}</div>
     </section>` : ''}
 
@@ -578,7 +676,7 @@ export function renderNotation(note, el) {
         <div class="row"><div class="stmt">
           <span class="lhs">${esc(c.lhs)}</span>
           <span class="op">=</span>
-          <span class="rhs">${esc(c.rhs)}${c.dim ? ` <em>(dim ${esc(c.dim)})</em>` : ''}</span>
+          <span class="rhs">${label(c.rhs)}${c.dim ? ` <em>(dim ${esc(c.dim)})</em>` : ''}</span>
           <span class="src">${esc(c.source)}</span>
         </div></div>`).join('')}</div>
     </section>` : ''}

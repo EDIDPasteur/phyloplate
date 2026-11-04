@@ -37,4 +37,11 @@ echo "  PhyloPlate  ->  http://localhost:$PORT"
 echo "  demo model  ->  http://localhost:$PORT/?demo=1"
 echo "  (Ctrl-C to stop)"
 echo
+
+# exec: this script becomes the server process itself, so it can never outlive
+# whatever started it (terminal, tmux, agent tool session) — Ctrl-C or kill on
+# the script always kills the server.  A backgrounded child does not: when this
+# script is launched with SIGINT already ignored (tool/nohup/script chains),
+# the trap and Python's own SIGINT handling are both no-ops and the server
+# survives Ctrl-C — that was the stuck-on-8000 bug.
 exec python3 -m http.server "$PORT" --bind 127.0.0.1
