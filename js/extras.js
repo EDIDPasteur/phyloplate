@@ -251,23 +251,23 @@ export class SourceView {
        * the elided form directly, no click-to-expand round trip. */
       if (n === 1) {
         const elided = elideSeqLine(this.lines[i]) || this.lines[i];
-        return `<span class="code">${esc(elided)}</span>`;
+        return `<span class="ln">${lineNo}</span><span class="code">${esc(elided)}</span>`;
       }
-      return `<span class="code">&nbsp;&nbsp;⋮&nbsp;&nbsp;${n} lines of sequence data&nbsp;&nbsp;(click to expand)</span>`;
+      return `<span class="ln">${lineNo}</span><span class="code">&nbsp;&nbsp;⋮&nbsp;&nbsp;${n} lines of sequence data&nbsp;&nbsp;(click to expand)</span>`;
     }
     const ln = this.lines[i];
     /* Expanded sequence lines keep the giant value= span elided —
      * a 186k-char row is what the user was scrolling past. */
     const elided = elideSeqLine(ln);
-    if (elided) return `<span class="code">${esc(elided)}</span>`;
+    if (elided) return `<span class="ln">${lineNo}</span><span class="code">${esc(elided)}</span>`;
     const code = esc(ln).replace(/^(\s*&lt;!--.*?--&gt;)/,
       '<span class="com">$1</span>');
     const tagStyled = code.replace(
       /(&lt;\/?)([a-zA-Z][\w:-]*)/g,
       '$1<span class="tag">$2</span>');
-    return tagStyled.replace(
+    return `<span class="ln">${lineNo}</span><span class="code">${tagStyled.replace(
       /\s([a-zA-Z\-:]+)=&quot;([^&]*)&quot;/g,
-      ' <span class="attr">$1</span>=<span class="str">"$2"</span>') || '&nbsp;';
+      ' <span class="attr">$1</span>=<span class="str">"$2"</span>') || '&nbsp;'}</span>`;
   }
 
   /** Lines (0-based) matching a lowercase query — used by the unified
