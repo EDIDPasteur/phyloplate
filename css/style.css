@@ -788,8 +788,11 @@ cd /mnt/c/Users/john/Documents/PhD/Dev/phyloplate && git diff --stat && cd /mnt/
 /* Long source lines are wrapped so the whole line stays inside the pane
  * instead of forcing horizontal scrolling: one row still corresponds to
  * one source line, it just grows taller when wrapped.  Sequence runs have
- * no whitespace, so word-break forces a break between characters. */
-.source-pane .source-body .src-line { white-space: pre-wrap; word-break: break-all; }
+ * Each source line is rendered as one line: no wrapping / no character
+* breaking, so a tag like <normalDistributionModel> stays whole.
+* Overlong lines overflow and scroll horizontally (the pane has
+* overflow: auto). */
+.source-pane .source-body .src-line { white-space: pre; word-break: normal; }
 .source-pane .source-body .src-head {
   position: sticky; top: -18px;
   background: var(--surface-1);
