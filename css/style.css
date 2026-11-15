@@ -792,7 +792,16 @@ cd /mnt/c/Users/john/Documents/PhD/Dev/phyloplate && git diff --stat && cd /mnt/
 * breaking, so a tag like <normalDistributionModel> stays whole.
 * Overlong lines overflow and scroll horizontally (the pane has
 * overflow: auto). */
-.source-pane .source-body .src-line { white-space: pre; word-break: normal; }
+/* Flex row: the line number is fixed, the code grows.  A flex item's
+ * content is not forced to wrap to its item width the way a grid
+ * column's is, so with white-space: pre each source line stays on one
+ * line and overlong lines scroll horizontally. */
+.source-pane .source-body .src-line {
+  display: flex; flex-direction: row; align-items: flex-start;
+  white-space: pre; word-break: normal; cursor: default;
+}
+.source-pane .source-body .src-line .ln { flex: 0 0 42px; }
+.source-pane .source-body .src-line .code { flex: 1 1 auto; }
 .source-pane .source-body .src-head {
   position: sticky; top: -18px;
   background: var(--surface-1);
@@ -811,10 +820,6 @@ cd /mnt/c/Users/john/Documents/PhD/Dev/phyloplate && git diff --stat && cd /mnt/
 .source-pane .source-body .src-body {
   margin: 0; padding: 0; font: inherit; white-space: pre;
   flex: 1; min-height: 0;
-}
-.source-pane .source-body .src-line {
-  display: grid; grid-template-columns: 42px minmax(0, 1fr);
-  cursor: default;
 }
 .source-pane .source-body .src-line:hover { background: color-mix(in srgb, var(--teal-500) 8%, transparent); }
 .source-pane .source-body .src-line.hi {
