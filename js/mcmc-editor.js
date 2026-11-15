@@ -1402,18 +1402,32 @@ function priorFields(kind) {
   }
 }
 
-function operatorFields() {
-  return [
-    { key: 'weight', label: 'weight', type: 'number' },
-    { key: 'scaleFactor', label: 'scaleFactor', type: 'number' },
-    { key: 'size', label: 'size', type: 'text' },
-    { key: 'windowSize', label: 'windowSize', type: 'text' },
-    { key: 'delta', label: 'delta', type: 'text' },
-    { key: 'gaussian', label: 'gaussian', type: 'select', options: ['true', 'false'] },
-    { key: 'autoOptimize', label: 'autoOptimize', type: 'select', options: ['true', 'false'] },
-    { key: 'type', label: 'type (nodeHeightOperator)', type: 'text' },
-    { key: 'boundaryCondition', label: 'boundaryCondition', type: 'text' },
-  ];
+/* One field spec entry derived from an attribute value: booleans
+ * become selects, numbers become number inputs, anything else is text. */
+function fieldSpecEntry(key, value) {
+  const bool = value === 'true' || value === 'false';
+  return {
+    key,
+    label: key,
+    type: bool ? 'select' : (isNumber(value) ? 'number' : 'text'),
+    options: bool ? ['true', 'false'] : null,
+  };
+}
+
+function isNumber(v) {
+  return /^(?:-?\d+\.?\d*|-?\d*[eE][+-]?\d+)$/.test(v);
+}
+
+function operatorFields(op) {
+  /* The fields come from the element's own attributes rather than a
+   * fixed list: a fixed list can't cover the operator tags BEAST X
+   * actually uses (so real attributes like `scaleAllIndependently`
+   * vanish), and it leaks BEAST 2 attribute names like `gaussian`
+   * into every BEAST X row.  Meta attributes (`id`, `spec`) identify
+   * the element rather than edit it, so they are skipped. */
+  return Object.keys(op.attrs)
+    .filter(k => k !== 'id' && k !== 'spec')
+    .map(key => fieldSpecEntry(key, op.attrs[key]));
 }
 
 /* ----------------------------------------------------- PriorDock (right panel) */
@@ -1783,7 +1797,7 @@ export class McmcEditor {
   }
 
   operatorRow(op, i) {
-    const spec = operatorFields();
+    const spec = operatorFields(op);
     /* i is the array index of this operator in the collectOperators
      * output, and that's the same index buildLineTargets uses for
      * the operator rowKey (`op:${i}`), so the SourceView's
@@ -1829,11 +1843,12 @@ export class McmcEditor {
 
   mcmcRow(attrs) {
     const obj = Object.fromEntries(attrs);
-    const spec = [
-      { key: 'chainLength', label: 'chainLength', type: 'number' },
-      { key: 'autoOptimize', label: 'autoOptimize', type: 'select', options: ['true', 'false'] },
-      { key: 'preBurnin', label: 'preBurnin', type: 'number' },
-    ];
+    /* Same as the operator rows: the fields come from the element's
+     * own attributes, not a fixed list, so only what exists can be
+     * edited.  `id` is a meta attribute, not an editable one. */
+    const spec = Object.keys(obj)
+      .filter(k => k !== 'id')
+      .map(key => fieldSpecEntry(key, obj[key]));
     return `<div class="slot" data-mcmc-row="" data-row-key="mcmc" tabindex="0"
        title="Click to jump to &lt;mcmc&gt; in the source XML">
       <div class="slot-head"><strong>&lt;mcmc&gt;</strong></div>
