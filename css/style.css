@@ -774,11 +774,22 @@ table.audit-table tr:hover td {
     flex: 0 0 auto; border-left: 0;
     border-top: 1px solid var(--line-strong);
   }
-  /* Long source lines never fit a narrow screen, so wrap them: the text
-   * stays inside the pane instead of running off the edge.  One row still
-   * corresponds to one source line, it just grows taller when wrapped. */
-  .source-pane .source-body .src-line { white-space: pre-wrap; }
+</parameter>
+</function>
+</tool_call>.
+
+Let me verify the change took effect and check the rendered width:
+
+<tool_call>
+<function=shell>
+<parameter=command>
+cd /mnt/c/Users/john/Documents/PhD/Dev/phyloplate && git diff --stat && cd /mnt/c/Users/john/Documents/PhD/Dev/phyloplate_tester && node stylecheck.cjs 2>&1 | head -12
 }
+/* Long source lines are wrapped so the whole line stays inside the pane
+ * instead of forcing horizontal scrolling: one row still corresponds to
+ * one source line, it just grows taller when wrapped.  Sequence runs have
+ * no whitespace, so word-break forces a break between characters. */
+.source-pane .source-body .src-line { white-space: pre-wrap; word-break: break-all; }
 .source-pane .source-body .src-head {
   position: sticky; top: -18px;
   background: var(--surface-1);
@@ -799,7 +810,7 @@ table.audit-table tr:hover td {
   flex: 1; min-height: 0;
 }
 .source-pane .source-body .src-line {
-  display: grid; grid-template-columns: 42px 1fr;
+  display: grid; grid-template-columns: 42px minmax(0, 1fr);
   cursor: default;
 }
 .source-pane .source-body .src-line:hover { background: color-mix(in srgb, var(--teal-500) 8%, transparent); }
