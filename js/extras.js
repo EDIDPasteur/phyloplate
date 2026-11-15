@@ -66,6 +66,10 @@ export class SourceView {
      * highlight a match without re-escaping the whole source. */
     this.rowHtml = null;
     this.rowEls = new Map();
+    this.rowContent = new Map();
+    /* Row cache: the per-line HTML that was last written to the DOM.  Rows
+     * are synced in place, so the content must be re-written whenever a
+     * collapsed run expands or collapses, otherwise the old text stays. */
     this.dirty = false;
     /* The head and the rows container are created once so the rows can
      * be synced in place instead of being destroyed and rebuilt. */
@@ -81,7 +85,7 @@ export class SourceView {
       this.rowBodyEl.className = 'src-body';
       this.bodyEl.appendChild(this.rowBodyEl);
     }
-    this.headEl.innerHTML = `<span class="src-label">Click any line to jump to its element.  Priors, operators, and chain settings also jump to the edit panel on the right.  Sequence data is collapsed; click a block to expand.</span>
+    this.headEl.innerHTML = `<span class="src-label">Click any line to jump to its element.  Priors, operators, and chain settings also jump to the edit panel on the right.  Sequence data is collapsed; click a block to expand or collapse.</span>
       <span class="src-current" id="src-current"></span>`;
     /* Delegated click handler for the rows: attached to the container so
      * it survives the in-place row syncs. */
@@ -90,8 +94,12 @@ export class SourceView {
       if (!ln) return;
       const line = +ln.dataset.line;
       if (ln.classList.contains('src-collapse')) {
-        this.expandedRuns.add(line - 1);
-        /* Expanding a run changes the row content, so the cache must go. */
+        /* A collapse row toggles the run: expand when collapsed, collapse
+         * when expanded.  Expanding/collapsing changes the row content,
+         * so the cache must go. */
+        const key = line - 1;
+        if (this.expandedRuns.has(key)) this.expandedRuns.delete(key);
+        else this.expandedRuns.add(key);
         this.dirty = true;
         this.render();
         return;
@@ -127,6 +135,7 @@ export class SourceView {
     /* New content: drop the row cache and rebuild on the next render. */
     this.rowHtml = null;
     this.rowEls = new Map();
+    this.rowContent = new Map();
     this.dirty = true;
     this.render();
   }
@@ -158,7 +167,10 @@ export class SourceView {
       const lineNo = i + 1;
       const run = runAt.get(i);
       let cls = 'src-line';
-      if (run && !this.expandedRuns.has(run.start) && run.end > run.start)
+      /* The start row of a multi-line sequence run is a header row in both
+       * states — 'click to expand' when collapsed, 'click to collapse'
+       * when expanded — so it carries `src-collapse` either way. */
+      if (run && run.end > run.start && i === run.start)
         cls += ' src-collapse';
       if (targetLines.has(lineNo)) cls += ' src-target';
       if (this.matchSet.has(i)) cls += ' src-find';
@@ -166,6 +178,7 @@ export class SourceView {
        * is marked `src-find-cur`. */
       const cur = this.matches[this.cursor];
       if (cur?.type === 'line' && cur.line === i) cls += ' src-find-cur';
+      const content = this.rowHtml[i];
       let el = this.rowEls.get(i);
       if (el) {
         if (el.className !== cls) {
@@ -173,18 +186,28 @@ export class SourceView {
           const kept = el.className.split(/\s+/).filter(c => !/^src-/.test(c) && c !== 'src-line');
           el.className = cls + kept.map(c => c ? ` ${c}` : '').join('');
         }
+        // the row already exists: re-write its content if it changed
+        if (this.rowContent.get(i) !== content) {
+          el.innerHTML = content;
+          this.rowContent.set(i, content);
+        }
       } else {
         el = document.createElement('div');
         el.className = cls;
         el.dataset.line = lineNo;
-        el.innerHTML = this.rowHtml[i];
-        this.rowBodyEl.appendChild(el);
+        el.innerHTML = content;
         this.rowEls.set(i, el);
+        this.rowContent.set(i, content);
+        this.rowBodyEl.appendChild(el);
       }
     }
     // Drop rows whose line is now covered by a collapsed run or is gone.
     for (const [i, el] of [...this.rowEls]) {
-      if (i >= this.lines.length || skipped.has(i)) { el.remove(); this.rowEls.delete(i); }
+      if (i >= this.lines.length || skipped.has(i)) {
+        el.remove();
+        this.rowEls.delete(i);
+        this.rowContent.delete(i);
+      }
     }
   }
   /* nodeRange: { line, endLine } from parser */
@@ -254,6 +277,10 @@ export class SourceView {
         return `<span class="ln">${lineNo}</span><span class="code">${esc(elided)}</span>`;
       }
       return `<span class="ln">${lineNo}</span><span class="code">&nbsp;&nbsp;⋮&nbsp;&nbsp;${n} lines of sequence data&nbsp;&nbsp;(click to expand)</span>`;
+    }
+    if (run && this.expandedRuns.has(run.start) && i === run.start) {
+      const n = run.end - run.start + 1;
+      return `<span class="ln">${lineNo}</span><span class="code">&nbsp;&nbsp;⋮&nbsp;&nbsp;${n} lines of sequence data&nbsp;&nbsp;(click to collapse)</span>`;
     }
     const ln = this.lines[i];
     /* Expanded sequence lines keep the giant value= span elided —

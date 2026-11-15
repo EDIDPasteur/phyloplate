@@ -774,6 +774,10 @@ table.audit-table tr:hover td {
     flex: 0 0 auto; border-left: 0;
     border-top: 1px solid var(--line-strong);
   }
+  /* Long source lines never fit a narrow screen, so wrap them: the text
+   * stays inside the pane instead of running off the edge.  One row still
+   * corresponds to one source line, it just grows taller when wrapped. */
+  .source-pane .source-body .src-line { white-space: pre-wrap; }
 }
 .source-pane .source-body .src-head {
   position: sticky; top: -18px;
