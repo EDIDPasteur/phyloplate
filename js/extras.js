@@ -162,6 +162,9 @@ export class SourceView {
     }
 
     // The rows: content is cached, only the class strings change between calls.
+    // Rows are kept in line order, so an expanded run renders its lines
+    // right after the header row instead of at the bottom of the pane.
+    let lastEl = null;
     for (let i = 0; i < this.lines.length; i++) {
       if (skipped.has(i)) continue;
       const lineNo = i + 1;
@@ -191,6 +194,7 @@ export class SourceView {
           el.innerHTML = content;
           this.rowContent.set(i, content);
         }
+        lastEl = el;
       } else {
         el = document.createElement('div');
         el.className = cls;
@@ -198,7 +202,10 @@ export class SourceView {
         el.innerHTML = content;
         this.rowEls.set(i, el);
         this.rowContent.set(i, content);
-        this.rowBodyEl.appendChild(el);
+        // the loop runs in line order, so the last rendered element is the
+        // correct anchor: the new row lands exactly after its predecessor
+        lastEl ? lastEl.after(el) : this.rowBodyEl.prepend(el);
+        lastEl = el;
       }
     }
     // Drop rows whose line is now covered by a collapsed run or is gone.
